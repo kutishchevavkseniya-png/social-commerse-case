@@ -64,9 +64,7 @@ export function messengerUI(state,{esc,money,save,go}){
     const storeName=state.community.name;
     const path=thread=>seller?'clients/'+thread:thread?'inbox/order/'+thread:'inbox/shop';
     const threads=new Map([[0,[]],...orders.filter(order=>order.demo).map(order=>[order.id,[orderConfirmation(order)]])]);
-    const activity=new Map();
-    for(const [index,message] of state.messages.entries()){
-      activity.set(message.thread,index);
+    for(const message of state.messages){
       if(!threads.has(message.thread))threads.set(message.thread,[]);
       threads.get(message.thread).push(message);
     }
@@ -79,7 +77,8 @@ export function messengerUI(state,{esc,money,save,go}){
       preview:'Заказ № '+order.id+' · '+order.product,
       order
     }))];
-    const recent=(a,b)=>(activity.get(b.id)??-1)-(activity.get(a.id)??-1);
+    const activity=row=>threads.get(row.id)?.at(-1)?.at||row.order?.createdAt||0;
+    const recent=(a,b)=>activity(b)-activity(a);
     const entries=seller?all.filter(row=>[row.name,row.preview].join(' ').toLowerCase().includes(clientQuery.toLowerCase()))
       .sort(recent):[...all.slice(1).sort(recent),general];
     const selected=id===undefined?entries[0]:all.find(row=>row.id===Number(id));

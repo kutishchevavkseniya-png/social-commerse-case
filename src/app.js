@@ -68,8 +68,8 @@ function table(headers,rows,empty='Здесь пока ничего нет'){
     '</tbody></table></div>';
 }
 function productImage(p){
-  if(p.kind==='beiber') return '<img src="/public/media/beiber-ozon.webp" alt="Спрей BEIBER «Сочный арбуз»">';
-  if(p.kind==='poncho') return '<img src="/public/media/poncho.webp" alt="Собака в синем пончо">';
+  if(p.kind==='beiber') return '<img src="./public/media/beiber-ozon.webp" alt="Спрей BEIBER «Сочный арбуз»">';
+  if(p.kind==='poncho') return '<img src="./public/media/poncho.webp" alt="Собака в синем пончо">';
   return '<span class="product-icon" style="--product-bg:'+esc(p.color)+'">'+icon('box',30)+'</span>';
 }
 const onboarding=onboardingUI(state,{esc,link,money,save,go,btn,dialog,closeDialog:()=>modal.close()});
@@ -265,7 +265,7 @@ function businessHeader(page){
   const active=businessSections.find(section=>Object.hasOwn(section.pages,current));
   const subnav=Object.entries(active.pages);
   return `<section class="card mast business-mast">
-    <div class="mast-row"><img class="shop-avatar" src="/public/media/community-avatar.webp" alt="">
+    <div class="mast-row"><img class="shop-avatar" src="./public/media/community-avatar.webp" alt="">
       <div class="mast-copy"><p class="business-store">${esc(state.community.name)}</p><h1>Мой бизнес</h1></div>
       ${link('community/owner','Открыть сообщество','btn secondary')}
     </div>
@@ -303,7 +303,7 @@ function render(){
   const body=routes[page](arg,detail);
   const activeNav=inBusiness?'business':inMarket?'market':['community','shop-services','new-community'].includes(page)?'communities':page;
   const header=inBusiness?businessHeader(page):inMarket?marketView.toolbar(page,arg,marketQuery):'';
-  app.innerHTML='<header class="topbar"><div class="top-inner">'+link('feed','<img src="/public/media/vk.png" alt=""><span>ВКонтакте</span>','brand')+
+  app.innerHTML='<header class="topbar"><div class="top-inner">'+link('feed','<img src="./public/media/vk.png" alt=""><span>ВКонтакте</span>','brand')+
     '<div class="global-search" aria-disabled="true">'+icon('search',18)+' Поиск</div><span class="top-bell" aria-hidden="true">'+icon('bell',21)+'</span><div class="top-end"><span class="demo">Демоверсия</span><span class="avatar mini" aria-label="Профиль демоверсии">А</span></div></div></header>'+
     '<div class="layout"><aside class="sidebar"><nav aria-label="Меню ВКонтакте">'+nav.map(([glyph,label,target])=>{
       if(!target)return '<span class="nav-item disabled" aria-disabled="true">'+icon(glyph,19)+'<span>'+label+'</span></span>';
@@ -453,7 +453,7 @@ document.addEventListener('click',event=>{
     case 'payment-failed':
       if(o?.status==='new'&&o.payment==='processing'){
         o.payment=b.dataset.action==='payment-paid'?'paid':'failed';
-        if(o.gift&&o.payment==='paid')state.messages.push({thread:o.id,side:'seller',text:'Подарок оплачен. Получатель может принять его и указать адрес.',gift:o.id});
+        if(o.gift&&o.payment==='paid')state.messages.push({thread:o.id,side:'seller',text:'Подарок оплачен. Получатель может принять его и указать адрес.',gift:o.id,at:Date.now()});
         modal.close();save(statusText[o.payment]);
       }
       break;
@@ -620,6 +620,20 @@ function recordTrialImpressions(){
   }
 }
 window.addEventListener('hashchange',()=>{if(modal.open)modal.close();render();recordTrialImpressions();recordPublicationViews();window.scrollTo(0,0);});
+window.addEventListener('storage',event=>{
+  if(event.key!==key||!event.newValue)return;
+  const next=JSON.parse(event.newValue);
+  const changed=['orders','messages','products'].some(field=>JSON.stringify(state[field])!==JSON.stringify(next[field]));
+  // Community views retain references to their own models.
+  const {community,newCommunity,...rest}=next;
+  for(const [model,updated] of [[state.community,community],[state.newCommunity,newCommunity]]){
+    if(!updated)continue;
+    for(const field of Object.keys(model))if(!Object.hasOwn(updated,field))delete model[field];
+    Object.assign(model,updated);
+  }
+  Object.assign(state,rest);
+  if(changed&&!document.activeElement?.closest('#app form'))render();
+});
 render();
 recordTrialImpressions();
 recordPublicationViews();

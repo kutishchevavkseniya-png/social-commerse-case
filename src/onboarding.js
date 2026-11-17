@@ -1,5 +1,5 @@
 import {icon} from './icons.js';
-import {deliveryMethods, marketMatch, purchaseLabels, quote} from './commerce.js';
+import {deliveryMethods, marketMatch, quote} from './commerce.js';
 import {placeOrder, metrics} from './store.js';
 import {advanceDelivery,deliveryStages,deliveryStep} from './delivery.js';
 
@@ -63,7 +63,7 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
     const done=steps.filter(row=>row[3]).length;
     return `<section class="card"><div class="card-head"><h1>Сообщества</h1></div>
       <div class="community-directory">
-        ${link('community','<img class="shop-avatar" src="/public/media/community-avatar.webp" alt=""><span><strong>'+esc(state.community.name)+'</strong><small>Витрина с товарами и публикациями</small></span>'+icon('arrow',17),'community-directory-row')}
+        ${link('community','<img class="shop-avatar" src="./public/media/community-avatar.webp" alt=""><span><strong>'+esc(state.community.name)+'</strong><small>Витрина с товарами и публикациями</small></span>'+icon('arrow',17),'community-directory-row')}
         ${link(ownerPath,'<span class="community-new-icon">'+icon('bag',24)+'</span><span><strong>'+esc(draft.name)+'</strong><small>Запуск магазина · '+done+' из '+steps.length+'</small></span>'+icon('arrow',17),'community-directory-row')}
       </div>
     </section>`;

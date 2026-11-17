@@ -31,7 +31,7 @@ export function safeUrl(value){
     return ['https:','http:'].includes(url.protocol) ? url.href : '';
   } catch { return ''; }
 }
-const avatar = '<img class="community-avatar" src="/public/media/community-avatar.webp" alt="">';
+const avatar = '<img class="community-avatar" src="./public/media/community-avatar.webp" alt="">';
 const sections = {
   profile:'Основная информация', action:'Кнопка действия', visibility:'Контент и разделы',
   links:'Ссылки и адреса', menu:'Меню', contact:'Сообщения', comments:'Комментарии',
@@ -73,7 +73,7 @@ export function communityUI(state, ui){
     const tag=product?productTag(product,source,p.id):'';
     const clip=p.type==='clip'?link('clips/'+p.id,icon('play',18)+' Смотреть клип','btn secondary'):'';
     const media=p.poster==='poncho'?`<div class="publication-media">
-      <img class="publication-photo" src="/public/media/poncho.webp" alt="Собака в синем пончо">
+      <img class="publication-photo" src="./public/media/poncho.webp" alt="Собака в синем пончо">
       ${tag?`<div class="publication-media-tag">${tag}</div>`:''}
     </div>`:tag;
     return `<article class="publication"><header class="community-item">${link('community',avatar+'<span><strong>'+esc(c.name)+'</strong><small>'+types[p.type]+'</small></span>','community-item')}</header>
@@ -118,7 +118,7 @@ export function communityUI(state, ui){
     const product=state.products.find(p=>p.id===clip.product);
     const demoVideo=clip.id===1;
     const player=demoVideo
-      ? '<video class="clip-player" src="/public/media/poncho-clip.mp4" poster="/public/media/poncho.webp" aria-label="Деморолик о пончо Бишки" controls muted autoplay loop playsinline preload="metadata">Ваш браузер не поддерживает видео.</video>'
+      ? '<video class="clip-player" src="./public/media/poncho-clip.mp4" poster="./public/media/poncho.webp" aria-label="Деморолик о пончо Бишки" controls muted autoplay loop playsinline preload="metadata">Ваш браузер не поддерживает видео.</video>'
       : '<div class="clip-no-video"><span>У этого клипа пока нет видео</span></div>';
     const attachment=product?`<div class="clip-media-tag" aria-label="Товар из клипа">${productTag(product,0,clip.id)}</div>`:'';
     const more=clips.length>1?`<nav class="clip-more" aria-label="Другие клипы">${clips.filter(p=>p.id!==clip.id).map(p=>link('clips/'+p.id,esc(p.title),'btn secondary')).join('')}</nav>`:'';
@@ -158,7 +158,7 @@ export function communityUI(state, ui){
     return card('Комментарии сообщества',filters+(rows.length?rows.map(row=>`<article class="message-row"><strong>${esc(row.author)}</strong><small>${esc(state.publications.find(p=>p.id===row.publication)?.title||'Публикация')}</small><p>${esc(row.text)}</p>${row.reply?`<p class="reply">Ответ: ${esc(row.reply)}</p>`:''}<div class="actions">${btn('community-moderate',row.hidden?'Восстановить':'Скрыть','secondary',row.id)}${!row.hidden?btn('community-reply','Ответить','secondary',row.id):''}</div></article>`).join(''):blank('В этом списке пока нет комментариев.')),link('manage/comments','Настроить фильтр','text-link'));
   }
   function serviceRow(s,manage){
-    return `<article class="service-row">${s.photo?'<img src="/public/media/stylist.webp" alt="Собака в одежде от стилиста">':''}
+    return `<article class="service-row">${s.photo?'<img src="./public/media/stylist.webp" alt="Собака в одежде от стилиста">':''}
       <div><h3>${esc(s.name)}</h3><p class="preline muted">${esc(s.text)}</p><strong>${s.price?money(s.price):'По договорённости'}</strong>
       <div class="actions">${manage?btn('community-service-edit','Изменить','secondary',s.id):''}${!manage&&c.messages?btn('community-service-request','Заказать услугу','secondary',s.id):''}</div></div></article>`;
   }
@@ -335,7 +335,7 @@ export function communityUI(state, ui){
         const threadId=service?0:Number(thread);
         if(!value('text')||(!seller&&!c.messages))return;
         if(threadId!==0&&!state.orders.some(order=>order.id===threadId&&(seller||order.demo)))return;
-        state.messages.push({thread:threadId,side:seller?'seller':'buyer',text:value('text')});
+        state.messages.push({thread:threadId,side:seller?'seller':'buyer',text:value('text'),at:Date.now()});
         if(!seller)go(threadId?'inbox/order/'+threadId:'inbox/shop');
         save('Сообщение отправлено');
         return;
