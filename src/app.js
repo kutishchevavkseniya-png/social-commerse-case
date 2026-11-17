@@ -101,7 +101,7 @@ const ecosystem=ecosystemUI(state,{esc,btn,link,money,dialog,save,go,productImag
 let orderSearch='';
 let orderStatus='all';
 const orderSource=o=>Array.from(new Set((o.items?.map(item=>item.source)||[o.source]).filter(value=>channels.includes(value)))).join(' · ')||channels[4];
-const sourcedOrders=source=>state.orders.filter(order=>order.source===source||order.items?.some(item=>item.source===source));
+const sourcedOrders=source=>state.orders.filter(order=>(!order.sellerId||order.sellerId==='bishka')&&(order.source===source||order.items?.some(item=>item.source===source)));
 function openCount(source){
   const idx=channels.indexOf(source);
   return idx===4?null:([660,420,220,180][idx]||0)+state.events.filter(e=>e.source===source&&e.type==='open').length;
@@ -124,11 +124,12 @@ function readiness(){
     link(next?next[2]:'market-shop',next?'Продолжить настройку':'Проверить как покупатель','btn primary full')+'</section>';
 }
 function chart(){
-  const end=state.orders.reduce((date,o)=>o.date>date?o.date:date,'2026-11-16');
+  const ownOrders=state.orders.filter(o=>!o.sellerId||o.sellerId==='bishka');
+  const end=ownOrders.reduce((date,o)=>o.date>date?o.date:date,'2026-11-16');
   const format=new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',timeZone:'UTC'});
   const data=Array.from({length:7},(_,i)=>{
     const date=new Date(Date.parse(end)-86400000*(6-i));
-    return {day:format.format(date),...metrics(state.orders.filter(o=>o.date===date.toISOString().slice(0,10)))};
+    return {day:format.format(date),...metrics(ownOrders.filter(o=>o.date===date.toISOString().slice(0,10)))};
   });
   const max=Math.max(4,...data.map(d=>d.count));
   return '<div class="chart-legend"><span>Оформлено</span><span>Оплачено</span></div><div class="chart" aria-label="Заказы и оплаты с '+data[0].day+' по '+data.at(-1).day+'">'+
@@ -190,7 +191,7 @@ function orders(){
 function payments(){
   const m=metrics(state.orders.filter(o=>!o.sellerId||o.sellerId==='bishka'));
   return '<div class="metrics"><section class="card metric"><div class="metric-label">Сумма оформленных заказов</div><strong>'+money(m.amount)+'</strong></section><section class="card metric"><div class="metric-label">Подтверждённые оплаты</div><strong>'+money(m.revenue)+'</strong></section><section class="card metric"><div class="metric-label">Статус VK Pay</div><strong class="status-value">'+(state.settings.payment?'Подключён':'Не подключён')+'</strong>'+link('settings','Настроить','text-link')+'</section></div>'+
-    '<section class="card"><div class="card-head"><h2>Платежи по заказам</h2></div>'+table(['Заказ','Способ','Сумма','Статус'],state.orders.map(o=>[link('order/'+o.id,'№ '+o.id,'text-link'),o.method==='vk'?'VK Pay':'Вне VK',money(o.total),paymentBadge(o)]))+'</section>';
+    '<section class="card"><div class="card-head"><h2>Платежи по заказам</h2></div>'+table(['Заказ','Способ','Сумма','Статус'],state.orders.filter(o=>!o.sellerId||o.sellerId==='bishka').map(o=>[link('order/'+o.id,'№ '+o.id,'text-link'),o.method==='vk'?'VK Pay':'Вне VK',money(o.total),paymentBadge(o)]))+'</section>';
 }
 function settings(){
   const config=state.settings;
