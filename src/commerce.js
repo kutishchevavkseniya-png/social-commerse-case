@@ -44,10 +44,11 @@ export function suggestCategory(value){
   return '';
 }
 
-export const purchaseLabels = {vk:'ВКонтакте',message:'В сообщениях',external:'На Ozon'};
+export const purchaseLabels = {vk:'ВКонтакте · VK Pay или карта',external:'На Ozon'};
 
 export function purchaseModes(product){
-  return product.modes ?? [product.mode || 'vk'];
+  const modes=(product.modes ?? [product.mode || 'vk']).filter(mode=>mode==='vk'||mode==='external');
+  return modes.length?modes:['vk'];
 }
 
 export function ozonUrl(product){
@@ -60,4 +61,12 @@ export function ozonUrl(product){
 
 export function cartModes(product){
   return product.stock>0?purchaseModes(product).filter(mode=>mode==='vk'||mode==='external'&&ozonUrl(product)):[];
+}
+
+export function productQuote(settings,items,method,promo){
+ const subtotal=items.reduce((n,r)=>n+r.product.price*r.quantity,0),q=quote(settings,subtotal,method,promo);
+ const fees=items.map(r=>r.product.deliveryPrice).filter(Number.isFinite);
+ if(method!=='pickup'&&fees.length){q.fee=Math.max(...fees);q.total=subtotal-q.discount+q.fee;}
+ if(method!=='pickup')q.days=Math.max(q.days,...items.map(r=>r.product.deliveryDays||0));
+ return q;
 }

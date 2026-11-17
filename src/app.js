@@ -1,8 +1,9 @@
+import {initEcosystem,ecosystemUI,illustration,friends} from './ecosystem.js';
 import {initCommunity,communityUI} from './community.js';
 import {shopUI} from './shop-ui.js';
 import {marketUI,ozonSample} from './market-ui.js';
 import {availableDelivery,deliveryMethods,marketMatch,quote,suggestCategory,purchaseModes,purchaseLabels,ozonUrl,cartModes} from './commerce.js';
-import {channels, initialState, metrics, ready, placeOrder} from './store.js';
+import {channels, initialState, metrics, ready, placeOrder, placeOrders} from './store.js';
 import {changeDelivery,deliveryStages,deliveryStep,deliveryLabel} from './delivery.js';
 import {onboardingUI} from './onboarding.js';
 import {messengerUI} from './messenger.js';
@@ -25,9 +26,10 @@ if(!state.settings.payment&&!state.settings.delivery&&!Object.hasOwn(state.setti
   state.settings={...state.settings,payment:true,delivery:true,deliveryMethods:['courier','pickup']};
 }
 initCommunity(state);
+initEcosystem(state);
 state.saved ??= [];
 if(!state.products.some(p=>p.kind==='rope-toy')){
-  state.products.push({id:Math.max(0,...state.products.map(p=>p.id))+1,name:'Игрушка «Канат»',price:490,stock:0,kind:'rope-toy',color:'#ecedf2',category:'Игрушки для собак'});
+  state.products.push({id:Math.max(0,...state.products.map(p=>p.id))+1,name:'Игрушка «Канат»',price:490,stock:0,kind:'rope-toy',sellerId:'bishka',color:'#ecedf2',category:'Игрушки для собак'});
 }
 function startShopChat(){
   if(location.hash==='#inbox/shop'&&state.community.messages&&!state.shopChatStarted){
@@ -42,10 +44,10 @@ const marketPages = new Set(['market','market-shop','market-saved','market-ozon'
 let toastTimer;
 const businessSections = [
   {label:'Обзор',pages:{business:'Обзор'}},
-  {label:'Переписки',pages:{clients:'Переписки с клиентами'}},
+  {label:'Общение',pages:{clients:'Переписки с клиентами',questions:'Вопросы покупателей','bot-settings':'Помощник магазина'}},
   {label:'Заказы',pages:{orders:'Заказы',payments:'Платежи'}},
   {label:'Ассортимент',pages:{products:'Товары',collections:'Подборки',services:'Услуги',promos:'Промокоды'}},
-  {label:'Продвижение',pages:{content:'Контент и каналы',campaigns:'Реклама',comments:'Комментарии'}},
+  {label:'Продвижение',pages:{content:'Контент и каналы',campaigns:'Реклама'}},
   {label:'Настройки',pages:{settings:'Оплата и доставка',manage:'Сообщество',integrations:'Интеграции',help:'Справка'}}
 ];
 const businessTitles=Object.assign({},...businessSections.map(section=>section.pages));
@@ -67,7 +69,7 @@ function saveMessage(message){
   toastTimer=setTimeout(()=>toast.classList.remove('show'),2600);
 }
 function save(message){
-  localStorage.setItem(key,JSON.stringify(state));
+  try{localStorage.setItem(key,JSON.stringify(state));}catch{saveMessage('Не хватает памяти браузера. Уменьшите размер прикреплённых файлов.');return;}
   render();
   if(message)saveMessage(message);
 }
@@ -85,15 +87,17 @@ function table(headers,rows,empty='Здесь пока ничего нет'){
     '</tbody></table></div>';
 }
 function productImage(p){
+  if(p.cover)return '<img src="'+esc(p.cover)+'" alt="'+esc(p.name)+'">';
   if(p.kind==='beiber') return '<img src="./public/media/beiber-ozon.webp" alt="Спрей BEIBER «Сочный арбуз»">';
   if(p.kind==='poncho') return '<img src="./public/media/poncho.webp" alt="Собака в синем пончо">';
-  return '<span class="product-icon" style="--product-bg:'+esc(p.color)+'">'+icon('box',30)+'</span>';
+  return illustration(p);
 }
 const onboarding=onboardingUI(state,{esc,link,money,save,go,btn,dialog,closeDialog:()=>modal.close()});
 const community=communityUI(state,{esc,link,btn,money,badge,dialog,save,go,productImage,table,roleSwitch:onboarding.roleSwitch});
 const messenger=messengerUI(state,{esc,money,save,go});
 const shop=shopUI(state,{esc,link,btn,money,table,ozonSample});
 const marketView=marketUI(state,{esc,link,btn,money,productImage,shop});
+const ecosystem=ecosystemUI(state,{esc,btn,link,money,dialog,save,go,productImage,findProduct:shop.findProduct,ozonSample,card:marketView.card,cartAction:shop.cartAction,toast:saveMessage});
 let orderSearch='';
 let orderStatus='all';
 const orderSource=o=>Array.from(new Set((o.items?.map(item=>item.source)||[o.source]).filter(value=>channels.includes(value)))).join(' · ')||channels[4];
@@ -131,7 +135,7 @@ function chart(){
     data.map(d=>'<div class="chart-day" tabindex="0" aria-label="'+d.day+': оформлено '+d.count+', оплачено '+d.paid+'"><div class="chart-tooltip" aria-hidden="true"><strong>'+d.day+'</strong><br>Оформлено: '+d.count+'<br>Оплачено: '+d.paid+'</div><div class="bars"><i style="height:'+d.count/max*100+'%"></i><i style="height:'+d.paid/max*100+'%"></i></div><span>'+d.day+'</span></div>').join('')+'</div>';
 }
 function overview(){
-  const m=metrics(state.orders);
+  const m=metrics(state.orders.filter(o=>!o.sellerId||o.sellerId==='bishka'));
   const stats=[['Оформлено заказов',fmt(m.count),'На сумму '+money(m.amount),'bag'],['Оплачено заказов',fmt(m.paid),'Из '+fmt(m.count)+' оформленных','check'],['Подтверждено оплат',money(m.revenue),'VK Pay и оплаты вне VK','card']];
   const shortcuts=[
     ['clients','Переписки с клиентами','Вопросы о товарах, услугах и заказах','chat'],
@@ -170,21 +174,21 @@ function content(){
   }))+'<p class="muted source-note">Если в заказе товары из разных каналов, заказ учитывается в каждом из них. В общем числе заказов он считается один раз.</p></section>'+publicationDetail(source,channel)+retailTrials();
 }
 function products(){
-  return '<section class="card"><div class="card-head"><h2>Карточки товаров <span class="muted">'+state.products.length+'</span></h2>'+btn('edit-product','Добавить товар','primary')+'</div>'+
-  table(['Товар','Цена','Остаток','В Маркете',''],state.products.map(p=>[
+  return '<section class="card"><div class="card-head"><h2>Карточки товаров <span class="muted">'+state.products.filter(p=>p.sellerId==='bishka').length+'</span></h2>'+btn('edit-product','Добавить товар','primary')+'</div>'+
+  table(['Товар','Цена','Остаток','В Маркете',''],state.products.filter(p=>p.sellerId==='bishka').map(p=>[
     '<div class="item">'+productImage(p)+'<div><strong>'+esc(p.name)+'</strong><small>'+esc(p.category)+'</small></div></div>',money(p.price),p.stock+' шт.',
     badge(p.stock?'Виден':'Нет в наличии',p.stock?'green':''),'<div class="actions">'+btn('edit-product','Изменить','secondary',p.id)+btn('check-product','Проверить готовность','secondary',p.id)+'</div>']))+'</section>'+
     '<section class="card callout"><span class="large-icon">'+icon('eye',25)+'</span><div><h2>Проверьте путь до заказа</h2><p>Откройте витрину и посмотрите, какие условия увидит покупатель.</p></div>'+link('market-shop','Открыть витрину','btn secondary')+'</section>';
 }
 function orders(){
-  const all=state.orders.filter(o=>(orderFilter==='all'||o.payment===orderFilter)&&
+  const all=state.orders.filter(o=>(!o.sellerId||o.sellerId==='bishka')&&(orderFilter==='all'||o.payment===orderFilter)&&
     (orderStatus==='all'||o.status===orderStatus)&&String(o.id+' '+o.name+' '+o.product+' '+(o.label||'')).toLowerCase().includes(orderSearch.toLowerCase()));
   return '<section class="card"><div class="card-head"><h2>Все заказы <span class="muted">'+all.length+'</span></h2><select id="order-filter" aria-label="Статус оплаты">'+[['all','Все оплаты'],...Object.entries(statusText)].map(([k,v])=>'<option value="'+k+'" '+(orderFilter===k?'selected':'')+'>'+v+'</option>').join('')+'</select></div>'+
     '<form class="search-form" data-form="order-search"><input aria-label="Поиск по заказам" name="query" placeholder="Номер, имя или товар" value="'+esc(orderSearch)+'"><select name="status" aria-label="Выполнение">'+[['all','Все статусы'],...Object.entries(orderText)].map(([k,v])=>'<option value="'+k+'" '+(orderStatus===k?'selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn secondary">Найти</button></form>'+
     table(['Заказ','Источник','Сумма','Оплата','Выполнение'],all.map(o=>[link('order/'+o.id,'№ '+o.id,'text-link')+'<small>'+esc(o.name)+'</small>'+(o.label?badge(esc(o.label),'blue'):''),esc(orderSource(o)),money(o.total),paymentBadge(o),badge(orderStatusLabel(o),o.status==='received'?'green':o.status==='cancelRequested'?'orange':'')]))+'</section>';
 }
 function payments(){
-  const m=metrics(state.orders);
+  const m=metrics(state.orders.filter(o=>!o.sellerId||o.sellerId==='bishka'));
   return '<div class="metrics"><section class="card metric"><div class="metric-label">Сумма оформленных заказов</div><strong>'+money(m.amount)+'</strong></section><section class="card metric"><div class="metric-label">Подтверждённые оплаты</div><strong>'+money(m.revenue)+'</strong></section><section class="card metric"><div class="metric-label">Статус VK Pay</div><strong class="status-value">'+(state.settings.payment?'Подключён':'Не подключён')+'</strong>'+link('settings','Настроить','text-link')+'</section></div>'+
     '<section class="card"><div class="card-head"><h2>Платежи по заказам</h2></div>'+table(['Заказ','Способ','Сумма','Статус'],state.orders.map(o=>[link('order/'+o.id,'№ '+o.id,'text-link'),o.method==='vk'?'VK Pay':'Вне VK',money(o.total),paymentBadge(o)]))+'</section>';
 }
@@ -240,13 +244,13 @@ function tracking(order,buyer){
   </section>`;
 }
 function orderDetail(id,buyer){
-  const o=state.orders.find(o=>o.id===id&&(!buyer||o.demo));
+  const o=state.orders.find(o=>o.id===id&&(buyer?o.demo:!o.sellerId||o.sellerId==='bishka'));
   if(!o)return '<section class="card">Заказ не найден.</section>';
   let actions=link((buyer?'inbox/order/':'clients/')+o.id,buyer?'Написать магазину':'Переписка с клиентом','btn secondary');
   if(buyer&&o.demo)actions+=link('inbox/delivery','Уведомления о доставке','btn secondary');
-  if(buyer&&o.status==='received'&&o.payment==='paid'&&unreviewedItems(o).length)actions+=btn('write-review','Оставить отзыв','secondary',o.id);
+  if(buyer&&o.status==='received'&&o.payment==='paid')actions+=btn('write-review',unreviewedItems(o).length?'Оставить отзыв':'Дополнить отзыв','secondary',o.id);
   if(buyer && o.status==='new'){
-    if(['unpaid','failed'].includes(o.payment)) actions+=btn('start-pay','Тестовая оплата','primary',o.id);
+    if(['unpaid','failed'].includes(o.payment)) actions+=btn('start-pay','Оплатить · VK Pay или карта','primary',o.id);
     if(o.payment==='processing') actions+=btn('resolve-pay','Завершить тестовую оплату','primary',o.id);
     actions+=btn('request-cancel','Запросить отмену','secondary',o.id);
   }
@@ -262,7 +266,8 @@ function orderDetail(id,buyer){
     (o.discount?'<div><dt>Промокод '+esc(o.promo)+'</dt><dd>−'+money(o.discount)+'</dd></div>':'')+
     '<div><dt>Сумма заказа</dt><dd>'+money(o.total)+'</dd></div><div><dt>Оплата</dt><dd>'+paymentBadge(o)+'</dd></div></dl>'+
     (buyer?'<p class="muted">Подтверждение и обновления статуса доступны в Мессенджере. Этот заказ можно снова открыть в разделе «Маркет → Заказы».</p>':'')+
-    '<div class="actions">'+actions+'</div></section>'+
+    '<div class="actions">'+actions+link('support/order-'+o.id,'Помощь с заказом','btn secondary')+'</div></section>'+
+    (buyer&&o.status==='received'&&unreviewedItems(o).length?'<section class="card"><h2>Как вам покупка?</h2><p>Заказ завершён. Оцените его в одно нажатие — текст необязателен. Напоминание останется в уведомлениях до оценки.</p>'+ecosystem.quickRating(o)+'</section>':'')+
     (o.demo?tracking(o,buyer):'')+(buyer?'':'<section class="card"><div class="card-head"><h2>Заметка продавца</h2></div><form data-form="order-note" data-id="'+o.id+'"><label>Метка<input name="label" maxlength="35" value="'+esc(o.label||'')+'"></label><label>Внутренний комментарий<textarea name="note" rows="3" maxlength="500">'+esc(o.note||'')+'</textarea></label><button class="btn secondary">Сохранить заметку</button></form></section>');
 }
 function unreviewedItems(order){
@@ -272,16 +277,16 @@ function giftView(id){
   const order=state.orders.find(o=>o.id===Number(id)&&o.gift&&o.payment==='paid'&&!['cancelled','cancelRequested'].includes(o.status));
   if(!order)return '<section class="card"><p>Подарок недоступен.</p></section>';
   const {gift}=order;
-  return '<section class="card"><div class="card-head"><h2>Подарок для '+esc(gift.recipient)+'</h2>'+badge(gift.accepted?'Принят':'Оплачен','green')+'</div><p>'+esc(order.name)+' дарит вам «'+esc(order.product)+'».</p>'+
-    (gift.accepted?'<p class="space-top">'+esc(gift.variant)+' · '+esc(gift.address)+'</p>':
-      '<form class="space-top" data-form="accept-gift" data-id="'+order.id+'"><label>Вариант товара<select name="variant"><option>Стандартный</option><option>Маленький</option><option>Большой</option></select></label><label>Адрес получателя<input name="address" required maxlength="160" placeholder="Для демо укажите вымышленный адрес"></label><button class="btn primary">Принять подарок</button></form>')+'</section>';
+  return '<section class="card gift-unpack"><div class="gift-art">🎁</div><div class="card-head"><h2>Подарок для '+esc(gift.recipient)+'</h2>'+badge(gift.accepted?'Принят':'Оплачен','green')+'</div><p>'+esc(order.name)+' дарит вам «'+esc(order.product)+'».</p>'+
+    (gift.accepted?'<p class="space-top">'+esc(gift.variant)+' · '+esc(gift.address)+'</p>':!gift.unwrapped?btn('unwrap-gift','Распаковать подарок','primary full',order.id):
+      '<p class="muted">Доставка уже оплачена: '+money(order.delivery)+'. Выберите доступный способ без доплаты.</p><form class="space-top" data-form="accept-gift" data-id="'+order.id+'"><label>Вариант товара<select name="variant"><option>Стандартный</option></select></label><label>Способ доставки<select name="method">'+(order.deliveryChoices?.length?order.deliveryChoices:[order.deliveryMethod]).map(code=>'<option value="'+code+'">'+deliveryMethods[code]+'</option>').join('')+'</select></label><label>Адрес получателя<input name="address" required maxlength="160" placeholder="Для демо укажите вымышленный адрес"></label><button class="btn primary">Принять подарок</button></form>')+'</section>';
 }
 function buyerOrders(){
   return '<section class="card"><div class="card-head"><h2>Мои заказы</h2></div>'+table(['Заказ','Товар','Сумма','Оплата','Выполнение'],state.orders.filter(o=>o.demo).map(o=>[link('purchase/'+o.id,'№ '+o.id,'text-link'),esc(o.product),money(o.total),paymentBadge(o),o.status==='new'?deliveryStages(o)[deliveryStep(o)]:orderText[o.status]]),'Оформите первый заказ на витрине.')+'</section>';
 }
-const nav = [['home','Моя страница'],['news','Лента','feed'],['chat','Мессенджер','inbox'],['people','Друзья'],['people','Сообщества','communities'],['music','Музыка'],['play','Видео'],['play','Клипы','clips'],['game','Игры'],['bag','Маркет','market'],['bag','Мой бизнес','business']];
-const routes={...community.views,communities:onboarding.list,'new-community':onboarding.page,business:overview,inbox:messenger.inbox,clients:messenger.clients,content,products,orders,payments,settings,market:category=>marketView.home(category,marketQuery),'market-shop':category=>marketView.home(category,marketQuery,'shop'),'market-saved':()=>marketView.home('',marketQuery,'saved'),'market-ozon':()=>marketView.home('',marketQuery),'market-item':marketView.detail,
-  'market-reviews':marketView.reviews,gift:giftView,cart:shop.cart,'my-orders':buyerOrders,order:id=>orderDetail(Number(id),false),purchase:id=>orderDetail(Number(id),true)};
+const nav = [['home','Моя страница'],['news','Лента','feed'],['chat','Мессенджер','inbox'],['people','Друзья'],['people','Сообщества','communities'],['music','Музыка'],['play','Видео'],['play','Клипы','clips'],['game','Игры'],['bag','Маркет','market'],['card','VK Pay','wallet'],['chat','Поддержка VK','support'],['bag','Мой бизнес','business']];
+const routes={...community.views,product:ecosystem.product,seller:ecosystem.sellerPage,wallet:ecosystem.wallet,notifications:ecosystem.notices,support:ecosystem.support,questions:ecosystem.questions,'bot-settings':ecosystem.bots,communities:onboarding.list,'new-community':onboarding.page,business:overview,inbox:messenger.inbox,clients:messenger.clients,content,products,orders,payments,settings,market:category=>marketView.home(category,marketQuery),'market-shop':category=>marketView.home(category,marketQuery,'shop'),'market-saved':()=>marketView.home('',marketQuery,'saved'),'market-ozon':()=>marketView.home('',marketQuery),'market-item':marketView.detail,
+  integrations:ecosystem.integrations,'market-reviews':marketView.reviews,gift:giftView,cart:shop.cart,'my-orders':buyerOrders,order:id=>orderDetail(Number(id),false),purchase:id=>orderDetail(Number(id),true)};
 function businessHeader(page){
   const current=page==='order'?'orders':page;
   const active=businessSections.find(section=>Object.hasOwn(section.pages,current));
@@ -302,6 +307,8 @@ function businessHeader(page){
 
 function legacyRoute(){
   const [page,id,side]=location.hash.slice(1).split('/');
+  if(page==='comments')return 'questions';
+  if(page==='market-item')return 'product/'+id;
   if(page==='overview')return 'business';
   if(page==='compare')return 'market-saved';
   if(page==='inbox'&&/^\d+$/.test(id||'')){
@@ -318,6 +325,7 @@ function render(){
   const page=Object.hasOwn(routes,route)?route:'feed';
   if(page==='content')channel=Number.isInteger(+arg)&&channels[+arg]?+arg:0;
   const inMarket=marketPages.has(page)||page==='purchase';
+  document.body.classList.toggle('product-route',page==='product');
   const inBusiness=Object.hasOwn(businessTitles,page)||page==='order';
   const currentClip=page==='clips'?app.querySelector('.clip-player'):null;
   const previousClip=currentClip?.dataset.route===location.hash?currentClip:null;
@@ -326,13 +334,13 @@ function render(){
   const activeNav=inBusiness?'business':inMarket?'market':['community','shop-services','new-community'].includes(page)?'communities':page;
   const header=inBusiness?businessHeader(page):inMarket?marketView.toolbar(page,arg,marketQuery):'';
   app.innerHTML='<header class="topbar"><div class="top-inner">'+link('feed','<img src="./public/media/vk.png" alt=""><span>ВКонтакте</span>','brand')+
-    '<div class="global-search" aria-disabled="true">'+icon('search',18)+' Поиск</div><span class="top-bell" aria-hidden="true">'+icon('bell',21)+'</span><div class="top-end"><span class="demo">Демоверсия</span><span class="avatar mini" aria-label="Профиль демоверсии">А</span></div></div></header>'+
+    '<div class="global-search" aria-disabled="true">'+icon('search',18)+' Поиск</div>'+link('notifications',icon('bell',21)+'<span class="notification-count">'+(state.notifications.length+ecosystem.pending().length||'')+'</span>','top-bell','Уведомления')+'<div class="top-end"><span class="demo">Демоверсия</span><span class="avatar mini" aria-label="Профиль демоверсии">А</span></div></div></header>'+
     '<div class="layout"><aside class="sidebar"><nav aria-label="Меню ВКонтакте">'+nav.map(([glyph,label,target])=>{
       if(!target)return '<span class="nav-item disabled" aria-disabled="true">'+icon(glyph,19)+'<span>'+label+'</span></span>';
       const className='nav-item'+(target==='business'?' business-entry':'')+(target===activeNav?' active':'');
       return '<a href="#'+target+'" aria-label="'+label+'" class="'+className+'" '+(target===activeNav?'aria-current="page"':'')+'>'+icon(glyph,19)+'<span>'+label+'</span></a>';
     }).join('')+'</nav><div class="nav-foot">Демо для VK Case Champ</div></aside>'+
-    '<main>'+header+body+'</main></div>';
+    '<main>'+header+body+'</main></div>'+link('support','Помощь VK','btn secondary support-entry');
   const player=app.querySelector('.clip-player');
   if(player){
     player.dataset.route=location.hash;
@@ -367,7 +375,7 @@ function productPanel(p,kind,back){
     const rows=state.reviews.filter(row=>row.productId===p.id);
     const count=p.reviewCount?.toLocaleString('ru-RU');
     dialog('Отзывы',`<div class="product-panel"><h3>${esc(p.name)}</h3>${
-      rows.length?rows.map(row=>`<article class="message-row">${badge(row.rating+' из 5','blue')} ${badge('Покупка подтверждена','green')}<p class="preline">${esc(row.text||'Без комментария')}</p></article>`).join(''):
+      rows.length?rows.map(ecosystem.review).join(''):
       count?`<p>★ ${esc(p.rating)} из 5 · ${count} отзывов на Ozon</p><p class="muted">Показана оценка из демокаталога. Тексты отзывов Ozon в демо недоступны.</p>`:
       '<p class="muted">У этого товара пока нет отзывов ВКонтакте.</p>'}
       <div class="actions">${backButton}</div></div>`);
@@ -375,22 +383,23 @@ function productPanel(p,kind,back){
   }
   const methods=availableDelivery(state.settings);
   dialog('Условия оплаты, доставки и возврата',`<div class="product-panel"><h3>${esc(p.name)}</h3>
-    ${modes.includes('vk')?`<div class="terms-row">${icon('card',20)}<div><strong>Оплата ВКонтакте</strong><p>${state.settings.payment?'Онлайн через VK Pay. В демо оплата тестовая.':'Приём оплаты через VK Pay пока не настроен.'}</p></div></div>
+    ${p.paymentPolicy?`<p class="muted">${esc(p.paymentPolicy)}</p>`:''}${modes.includes('vk')?`<div class="terms-row">${icon('card',20)}<div><strong>Оплата ВКонтакте</strong><p>${state.settings.payment?'Онлайн через VK Pay или банковской картой. В демо оплата тестовая.':'Приём оплаты через VK Pay пока не настроен.'}</p></div></div>
       <div class="terms-row">${icon('box',20)}<div><strong>Доставка</strong>${methods.length?`<ul>${methods.map(method=>{
-        const {fee,days}=quote(state.settings,p.price,method);
+        const base=quote(state.settings,p.price,method);const fee=method==='pickup'?base.fee:p.deliveryPrice??base.fee;const days=method==='pickup'?base.days:Math.max(base.days,p.deliveryDays||0);
         return `<li>${deliveryMethods[method]} · ${fee?money(fee):'бесплатно'} · ${days?days+' дн.':'в день заказа'}</li>`;
       }).join('')}</ul>`:'<p>Магазин пока не настроил доставку.</p>'}</div></div>
-      <div class="terms-row">${icon('chat',20)}<div><strong>Условия магазина и возврат</strong><p class="preline">${esc(state.settings.policy||'Уточните условия возврата у продавца.')}</p></div></div>`:''}
+      <div class="terms-row">${icon('chat',20)}<div><strong>Условия магазина и возврат</strong><p class="preline">${esc(p.returnPolicy||state.settings.policy||'Условия возврата продавца пока не заполнены. Задайте вопрос перед покупкой.')}</p></div></div>`:''}
     ${modes.includes('external')?`<div class="terms-row">${icon('box',20)}<div><strong>Заказ на Ozon</strong><p>При покупке на Ozon способы оплаты, стоимость доставки и условия возврата будут показаны при оформлении на Ozon.</p></div></div>`:''}
     ${modes.includes('message')?`<div class="terms-row">${icon('chat',20)}<div><strong>Заказ в сообщениях</strong><p>Продавец уточнит оплату и способ получения в переписке.</p></div></div>`:''}
-    <div class="actions">${backButton}${p.kind!=='beiber'&&state.community.messages?link('inbox/shop','Задать вопрос','btn secondary'):''}</div></div>`);
+    <div class="actions">${backButton}${btn('ask-product','Задать вопрос о товаре','secondary',p.id)}</div></div>`);
 }
 
 function editProduct(id){
   const p=state.products.find(p=>p.id===id);
+  if(p&&p.sellerId!=='bishka'){saveMessage('Этот товар принадлежит другому сообществу');return;}
   dialog(p?'Изменить товар':'Новый товар','<form data-form="product" data-id="'+(p?.id||'')+'"><label>Название<input name="name" required maxlength="70" value="'+esc(p?.name||'')+'"></label>'+
     '<label>Описание<textarea name="description" rows="2" maxlength="500">'+esc(p?.description||'')+'</textarea></label>'+
-    '<label>Категория<input name="category" required maxlength="50" value="'+esc(p?.category||'')+'"></label><small data-category-hint aria-live="polite"></small>'+
+    '<div class="actions">'+btn('smart-fill','✦ Заполнить по описанию','secondary')+'</div><label>Фото товара<input type="file" name="photo" accept="image/*"></label>'+btn('smart-cover','✦ Сделать обложку','secondary')+'<div class="cover-preview" data-cover-preview></div><label>Категория<input name="category" required maxlength="50" value="'+esc(p?.category||'')+'"></label><small data-category-hint aria-live="polite"></small>'+
     '<div class="field-grid"><label>Цена, ₽<input name="price" type="number" min="1" max="1000000" required value="'+(p?.price??'')+'"></label><label>Остаток, шт.<input name="stock" type="number" min="0" max="100000" required value="'+(p?.stock??'')+'"></label></div>'+
     '<fieldset class="purchase-options"><legend>Способы покупки</legend>'+Object.entries(purchaseLabels).map(([mode,label])=>
       '<label class="check-row"><input type="checkbox" name="modes" value="'+mode+'" '+(purchaseModes(p||{}).includes(mode)?'checked':'')+'> '+label+'</label>').join('')+'</fieldset>'+
@@ -418,6 +427,7 @@ function readinessDialog(p){
 document.addEventListener('click',event=>{
   const b=event.target.closest('[data-action]');
   if(!b)return;
+  if(ecosystem.action(b.dataset.action,b.dataset.id||'',b)){event.preventDefault();return;}
   if(b.dataset.action.startsWith('community-')){community.action(b.dataset.action.slice(10),b.dataset.id);return;}
   const [rawId,rawSource,rawPublication,rawTrial]=b.dataset.id?.split(':')||[];
   const id=+rawId;
@@ -431,7 +441,8 @@ document.addEventListener('click',event=>{
     case 'close': modal.close(); break;
     case 'training-reset': onboarding.resetPrompt(); break;
     case 'training-product': onboarding.productDialog(b.dataset.id); break;
-    case 'open-product': if(p){record('open',channelName,publication,trial);productDialog(p,source,publication,trial);} break;
+    case 'track-product':if(p)record('open',channelName,publication,trial);break;
+    case 'open-product': if(p){record('open',channelName,publication,trial);window.open('#product/'+p.id+'/'+[source,publication,trial].join(':'),'_blank','noopener');} break;
     case 'market-reset':
       marketQuery='';
       marketView.setFilters();
@@ -457,7 +468,7 @@ document.addEventListener('click',event=>{
       }else app.querySelector('[data-action="favorite"][data-id="'+id+'"]')?.focus();
       break;
     }
-    case 'product-back': if(p)productDialog(p,source,publication,trial);break;
+    case 'product-back':modal.close();if(p&&!location.hash.startsWith('#product/'))go('product/'+p.id);break;
     case 'product-terms':
     case 'product-reviews': if(p)productPanel(p,b.dataset.action.slice(8),modal.open?modal.dataset.product:'');break;
     case 'market-clear-filters': marketView.setFilters();render();break;
@@ -495,10 +506,11 @@ document.addEventListener('click',event=>{
       if(p&&purchaseModes(p).includes('message')&&state.community.messages)dialog('Сообщение о товаре','<form data-form="community-message" data-id="0:buyer"><label>Сообщение<textarea name="text" required maxlength="900">Здравствуйте! Хочу узнать о товаре «'+esc(p.name)+'».</textarea></label><button class="btn primary">Отправить</button></form>');
       break;
     case 'write-review':
-      if(o)dialog('Отзыв о покупке','<form data-form="review" data-id="'+id+'"><label>Товар<select name="productId">'+unreviewedItems(o).map(item=>'<option value="'+item.productId+'">'+esc(state.products.find(p=>p.id===item.productId)?.name||o.product)+'</option>').join('')+'</select></label><label>Оценка<select name="rating">'+[5,4,3,2,1].map(n=>'<option>'+n+'</option>').join('')+'</select></label><label>Отзыв<textarea name="text" rows="3" maxlength="600"></textarea></label><button class="btn primary">Опубликовать отзыв</button></form>');
+      if(o){const items=o.items||[{productId:o.productId}];const review=state.reviews.find(r=>r.orderId===o.id&&r.productId===items[0].productId);
+        dialog('Отзыв о покупке','<form data-form="review" data-id="'+id+'"><label>Товар<select name="productId">'+items.map(item=>'<option value="'+item.productId+'">'+esc(state.products.find(p=>p.id===item.productId)?.name||o.product)+'</option>').join('')+'</select></label><label>Оценка<select name="rating">'+[5,4,3,2,1].map(n=>'<option '+(n===(review?.rating||5)?'selected':'')+'>'+n+'</option>').join('')+'</select></label><label>Отзыв<textarea name="text" rows="3" maxlength="600">'+esc(review?.text||'')+'</textarea></label><label>Фото или видео (необязательно)<input type="file" name="media" accept="image/*,video/*" multiple></label><small>Можно отправить только оценку.</small><button class="btn primary">Опубликовать отзыв</button></form>');}
       break;
     case 'start-pay':
-      if(o?.status==='new'&&['unpaid','failed'].includes(o.payment)){o.payment='processing';save('Платёж обрабатывается');}
+      if(o?.status==='new'&&['unpaid','failed'].includes(o.payment)){dialog('Оплата заказа № '+o.id,'<p>К оплате '+money(o.total)+'</p><p class="muted">Тестовая операция, деньги не списываются.</p><form data-form="payment-method" data-id="'+o.id+'"><label class="check-row"><input type="radio" name="method" value="vk" '+(state.wallet.preferred==='vk'?'checked':'')+'>VK Pay · '+money(state.wallet.balance)+'</label><label class="check-row"><input type="radio" name="method" value="card" '+(state.wallet.preferred==='card'?'checked':'')+'>Карта •••• '+esc(state.wallet.card)+'</label><button class="btn primary">Подтвердить тестовую оплату</button></form>');}
       break;
     case 'resolve-pay':
       if(o?.status==='new'&&o.payment==='processing')dialog('Результат тестовой оплаты','<p class="muted">Выберите результат для демонстрации статуса платежа.</p><div class="actions">'+btn('payment-paid','Подтверждена','primary',id)+btn('payment-failed','Не прошла','secondary',id)+'</div>');
@@ -507,6 +519,8 @@ document.addEventListener('click',event=>{
     case 'payment-failed':
       if(o?.status==='new'&&o.payment==='processing'){
         o.payment=b.dataset.action==='payment-paid'?'paid':'failed';
+        if(o.payment==='paid'&&o.payWith==='vk')state.wallet.balance-=o.total;
+        if(o.gift&&o.payment==='paid')state.notifications.unshift({title:'Подарок отправлен другу',text:o.gift.recipient+' получит подарок в демочате',route:'inbox/gifts'});
         if(o.gift&&o.payment==='paid')state.messages.push({thread:o.id,side:'seller',text:'Подарок оплачен. Получатель может принять его и указать адрес.',gift:o.id,at:Date.now()});
         modal.close();save(statusText[o.payment]);
       }
@@ -522,7 +536,7 @@ document.addEventListener('click',event=>{
         }
         o.status='cancelled';
         if(o.payment==='processing')o.payment='unpaid';
-        if(o.payment==='paid')o.payment='refunded';
+        if(o.payment==='paid'){o.payment='refunded';if(o.payWith==='vk')state.wallet.balance+=o.total;}
         save('Заказ отменён');
       }
       break;
@@ -538,10 +552,11 @@ document.addEventListener('click',event=>{
       break;
   }
 });
-document.addEventListener('submit',event=>{
+document.addEventListener('submit',async event=>{
   const form=event.target;
   if(!form.dataset.form)return;
   event.preventDefault();
+  if(await ecosystem.submit(form))return;
   const f=new FormData(form);
   const value=name=>String(f.get(name)||'').trim();
   if(form.dataset.form==='onboarding'){onboarding.submit(form,event.submitter);return;}
@@ -555,6 +570,11 @@ document.addEventListener('submit',event=>{
     return;
   }
   switch(form.dataset.form){
+    case 'payment-method': {
+      const o=state.orders.find(o=>o.id===+form.dataset.id);if(!o||o.status!=='new'||!['unpaid','failed'].includes(o.payment))return;
+      if(value('method')==='vk'&&state.wallet.balance<o.total){saveMessage('Недостаточно демосредств. Пополните VK Pay или выберите карту.');return;}
+      o.payWith=value('method')==='card'?'card':'vk';o.payment='processing';modal.close();save('Платёж обрабатывается');break;
+    }
     case 'settings':
       state.settings={...state.settings,payment:f.has('payment'),delivery:f.has('delivery'),price:+value('price'),days:+value('days'),
         minimum:+value('minimum'),packingDays:+value('packingDays'),freeDelivery:f.has('freeDelivery'),policy:value('policy'),
@@ -575,10 +595,12 @@ document.addEventListener('submit',event=>{
         form.addEventListener('change',()=>field.setCustomValidity(''),{once:true});
         return;
       }
-      const changes={name:value('name'),category:value('category'),description:value('description'),modes,externalUrl,price:+value('price'),stock:+value('stock')};
+      const changes={...(form.dataset.attributes?{attributes:JSON.parse(form.dataset.attributes)}:{}),name:value('name'),category:value('category'),description:value('description'),modes,externalUrl,price:+value('price'),stock:+value('stock')};
       const p=state.products.find(p=>p.id===id);
-      if(p)Object.assign(p,changes);
-      else state.products.push({id:Math.max(0,...state.products.map(p=>p.id))+1,kind:'new',color:'#e9eff8',...changes});
+      if(form.dataset.cover)changes.cover=form.dataset.cover;
+      else if(f.get('photo')?.size){const file=f.get('photo');if(!file.type.startsWith('image/')||file.size>1500000){saveMessage('Для локального демо выберите фото до 1,5 МБ');return;}changes.cover=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(file);});}
+      if(p){const oldStock=p.stock;Object.assign(p,changes);ecosystem.restocked(p,oldStock);}
+      else state.products.push({id:Math.max(0,...state.products.map(p=>p.id))+1,kind:'new',sellerId:'bishka',color:'#e9eff8',...changes});
       modal.close();
       save('Карточка сохранена');
       break;
@@ -589,8 +611,10 @@ document.addEventListener('submit',event=>{
         form.elements.max.focus();
         break;
       }
-      marketView.setFilters({min:value('min'),max:value('max'),available:f.has('available'),sort:value('sort')});
-      render();recordTrialImpressions();
+      marketView.setFilters({min:value('min'),max:value('max'),available:f.has('available'),sort:value('sort'),days:value('days'),seller:value('seller')});
+      const scope=location.hash.startsWith('#market-shop')?'market-shop':location.hash.startsWith('#market-saved')?'market-saved':'market';
+      const route=scope+(value('category')?'/'+value('category'):'');
+      if(location.hash==='#'+route){render();recordTrialImpressions();}else go(route);
       break;
     case 'search':
       marketQuery=value('query');
@@ -606,14 +630,20 @@ document.addEventListener('submit',event=>{
     case 'review': {
       const o=state.orders.find(o=>o.id===Number(form.dataset.id));
       const productId=+value('productId');
-      if(!o?.demo||o.status!=='received'||o.payment!=='paid'||!unreviewedItems(o).some(item=>item.productId===productId))break;
-      state.reviews.push({orderId:o.id,productId,rating:+value('rating'),text:value('text')});
+      if(!o?.demo||o.status!=='received'||o.payment!=='paid'||!(o.items||[{productId:o.productId}]).some(item=>item.productId===productId))break;
+      const files=f.getAll('media').filter(file=>file.size);
+      if(files.length>3||files.some(file=>file.size>1500000||!/^image\/|^video\//.test(file.type))){saveMessage('До 3 фото или видео по 1,5 МБ в локальном демо');return;}
+      const media=await Promise.all(files.map(file=>new Promise(resolve=>{const r=new FileReader();r.onload=()=>resolve({type:file.type.startsWith('video')?'video':'image',url:r.result});r.readAsDataURL(file);})));
+      const existing=state.reviews.find(r=>r.orderId===o.id&&r.productId===productId);
+      if(existing)Object.assign(existing,{rating:+value('rating'),text:value('text'),media:media.length?media:existing.media||[]});
+      else state.reviews.push({orderId:o.id,productId,rating:+value('rating'),text:value('text'),media});
       modal.close();save('Отзыв опубликован');break;
     }
     case 'accept-gift': {
       const order=state.orders.find(o=>o.id===Number(form.dataset.id));
-      if(!order?.gift||order.gift.accepted||order.payment!=='paid'||order.status!=='new'||!value('address'))return;
-      Object.assign(order.gift,{accepted:true,variant:value('variant'),address:value('address')});
+      if(!order?.gift||order.gift.accepted||order.payment!=='paid'||order.status!=='new'||!value('address')||!(order.deliveryChoices?.length?order.deliveryChoices:[order.deliveryMethod]).includes(value('method')))return;
+      Object.assign(order.gift,{accepted:true,variant:value('variant'),address:value('address'),method:value('method')});
+      order.deliveryMethod=value('method');
       save('Подарок принят');
       break;
     }
@@ -623,17 +653,19 @@ document.addEventListener('submit',event=>{
       const [id,source,publication,trial]=form.dataset.id.split(':').map(Number);
       const p=state.products.find(p=>p.id===id);
       const items=fromCart?shop.vkCartItems():p?[itemFor(p,source,publication,trial)]:[];
-      if(!items.length||!value('name')||(gift?!value('recipient'):!value('city'))){form.querySelector('input').focus();return;}
+      if(!items.length||!value('name')||(gift?!value('recipient')&&!value('profile'):!value('city'))){form.querySelector('input').focus();return;}
       const promo=shop.refreshQuote(form);
       if(!form.reportValidity())return;
       if(form.dataset.preview==='true'){
         modal.close();save('Проверка пройдена. Заказ не создан.');return;
       }
       try{
-        const order=placeOrder(state,items,value('name'),gift?'':value('city'),value('method'),promo);
-        if(gift)order.gift={recipient:value('recipient'),accepted:false};
+        if(gift&&!friends.some(x=>x.id===value('recipient'))&&!/^https:\/\/(?:www\.)?vk\.(?:com|ru)\/[a-zA-Z0-9_.]+\/?$/.test(value('profile')))throw Error('Выберите друга или укажите ссылку VK');
+        const created=placeOrders(state,items,value('name'),gift?'':value('city'),value('method'),promo);
+        const order=created[0];
+        if(gift){const friend=friends.find(x=>x.id===value('recipient'));const profile=value('profile');if(!friend&&!/^https:\/\/(?:www\.)?vk\.(?:com|ru)\/[a-zA-Z0-9_.]+\/?$/.test(profile))throw Error('Выберите друга или укажите ссылку VK');order.gift={recipient:friend?.name||profile,recipientId:friend?.id||profile,accepted:false};}
         if(fromCart)state.cart=state.cart.filter(row=>row.mode==='external');
-        modal.close();save('Заказ оформлен');go('purchase/'+order.id);
+        modal.close();save('Заказ оформлен');go(created.length>1?'my-orders':'purchase/'+order.id);
       }catch(e){dialog('Не удалось оформить заказ','<p>'+esc(e.message)+'</p>');}
       break;
     }
@@ -673,6 +705,7 @@ document.addEventListener('input',event=>{
   if(form)shop.refreshQuote(form);
 });
 document.addEventListener('change',event=>{
+  if(event.target.matches('form[data-form="review"] select[name="productId"]')){const form=event.target.form;const r=state.reviews.find(r=>r.orderId===+form.dataset.id&&r.productId===+event.target.value);form.elements.rating.value=r?.rating||5;form.elements.text.value=r?.text||'';}
   if(event.target.matches('.store-settings [name="delivery"]'))event.target.form.querySelector('.delivery-settings').hidden=!event.target.checked;
   const composer=event.target.closest('.publication-composer');
   if(composer){
@@ -727,7 +760,7 @@ window.addEventListener('hashchange',()=>{if(modal.open)modal.close();startShopC
 window.addEventListener('storage',event=>{
   if(event.key!==key||!event.newValue)return;
   const next=JSON.parse(event.newValue);
-  const changed=['orders','messages','products'].some(field=>JSON.stringify(state[field])!==JSON.stringify(next[field]));
+  const changed=['orders','messages','products','reviews','questions','stockSubscriptions','wallet','notifications','botRules'].some(field=>JSON.stringify(state[field])!==JSON.stringify(next[field]));
   // Community views retain references to their own models.
   const {community,newCommunity,...rest}=next;
   for(const [model,updated] of [[state.community,community],[state.newCommunity,newCommunity]]){

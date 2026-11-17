@@ -13,6 +13,6 @@ export function productInfo(p,esc){
     <h3>Описание</h3><small>Артикул: ${esc(sku||p.id)}</small>
     <p class="preline">${esc(text||'Продавец пока не добавил описание.')}</p>
     ${contents?`<p><strong>Комплектация</strong><br>${esc(contents)}</p>`:''}
-    <h3>Характеристики</h3><dl class="product-specs">${[['Категория',p.category],...attributes].map(([name,value])=>`<div><dt>${esc(name)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>
+    <h3>Характеристики</h3><dl class="product-specs">${[['Категория',p.category],...(p.attributes||attributes)].map(([name,value])=>`<div><dt>${esc(name)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>
   </section>`;
 }

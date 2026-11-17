@@ -1,3 +1,4 @@
+import {friends,sellers} from './ecosystem.js';
 import {deliveryLabel,orderConfirmation} from './delivery.js';
 
 const personalContacts = [
@@ -42,6 +43,7 @@ export function messengerUI(state,{esc,money,save,go}){
       <nav class="tabs" aria-label="Разделы мессенджера">
         <a href="#inbox" ${active==='personal'?'aria-current="page"':''}>Личные</a>
         <a href="#inbox/purchases" ${active==='purchases'?'aria-current="page"':''}>Покупки</a>
+        <a href="#inbox/gifts" ${active==='gifts'?'aria-current="page"':''}>Подарки</a>
         <a href="#inbox/delivery" ${active==='delivery'?'aria-current="page"':''}>Уведомления о доставке</a>
       </nav></section>`;
   }
@@ -50,17 +52,27 @@ export function messengerUI(state,{esc,money,save,go}){
     const person=personalContacts.find(contact=>contact.id===id);
     const url=contact=>'inbox/personal/'+contact.id;
     const rows=personalContacts.map(contact=>({
-      ...contact,href:url(contact),preview:state.personalMessages[contact.id].at(-1)?.text||'Личный диалог'
+      ...contact,href:url(contact),preview:state.orders.some(o=>o.gift?.recipientId===contact.id&&o.payment==='paid')?'🎁 Подарок':state.personalMessages[contact.id].at(-1)?.text||'Личный диалог'
     }));
     return tabs('personal')+layout({
       title:'Личные диалоги',rows,active:person&&url(person),heading:person?.name||'Выберите диалог',caption:person?'Личная переписка':'',
-      thread:person?state.personalMessages[person.id].map(message=>bubble(message.text,message.outgoing)).join(''):'<p class="chat-empty muted">Откройте переписку из списка слева.</p>',
+      thread:person?state.personalMessages[person.id].map(message=>bubble(message.text,message.outgoing)).join('')+giftCards(person.id):'<p class="chat-empty muted">Откройте переписку из списка слева.</p>',
       form:person?composer(person.id,'personal-message'):''
     });
   }
 
+
+  function giftCards(friend){
+    return state.orders.filter(o=>o.gift&&o.payment==='paid'&&!['cancelled','cancelRequested'].includes(o.status)&&(!friend||o.gift.recipientId===friend)).map(o=>`<article class="gift-message"><span>🎁</span><strong>Подарок для ${esc(o.gift.recipient)}</strong><p>${esc(o.name)} дарит вам товар. Распакуйте подарок и выберите доставку.</p><a class="btn primary" href="#gift/${o.id}">${o.gift.accepted?'Посмотреть подарок':'Распаковать подарок'}</a><small>Демонстрация сообщения получателю</small></article>`).join('');
+  }
+  function reviewPrompt(order){
+    if(!order?.demo||order.status!=='received'||order.payment!=='paid')return '';
+    const todo=(order.items||[{productId:order.productId}]).some(i=>!state.reviews.some(r=>r.orderId===order.id&&r.productId===i.productId));
+    return todo?`<div class="bubble"><strong>Как вам покупка?</strong><p>Заказ завершён. Поставьте оценку — текст необязателен.</p><div class="quick-rating">${[1,2,3,4,5].map(n=>`<button class="btn secondary" data-action="quick-review" data-id="${order.id}:${n}">${n} ★</button>`).join('')}</div></div>`:'';
+  }
+
   function shopChat(seller,id){
-    const orders=state.orders.filter(order=>seller||order.demo);
+    const orders=state.orders.filter(order=>seller?(!order.sellerId||order.sellerId==='bishka'):order.demo);
     const storeName=state.community.name;
     const path=thread=>seller?'clients/'+thread:thread?'inbox/order/'+thread:'inbox/shop';
     const threads=new Map([[0,[]],...orders.filter(order=>order.demo).map(order=>[order.id,[orderConfirmation(order)]])]);
@@ -74,7 +86,7 @@ export function messengerUI(state,{esc,money,save,go}){
     };
     const hasGeneral=state.shopChatStarted||threads.get(0).length>0;
     const all=[...orders.map(order=>({
-      id:order.id, name:seller?order.name:storeName, href:path(order.id),
+      id:order.id, name:seller?order.name:sellers[order.sellerId||'bishka']?.name||storeName, href:path(order.id),
       preview:'Заказ № '+order.id+' · '+order.product,
       order
     })),...(hasGeneral?[general]:[])];
@@ -99,9 +111,9 @@ export function messengerUI(state,{esc,money,save,go}){
         message.text,message.side===(seller?'seller':'buyer'),message.side==='delivery'?deliveryLabel(order):message.side==='seller'?storeName:seller?selected.name:'Вы',
         !seller&&(message.side==='delivery'||message.kind==='order-confirmation')?`<a href="#purchase/${order.id}" class="text-link">Отследить заказ</a>`:!seller&&message.gift?`<a href="#gift/${message.gift}" class="text-link">Открыть подарок</a>`:''
       )).join(''):`<p class="chat-empty muted">${selected&&!seller&&!order&&state.community.messages?esc(state.community.greeting):selected?'Здесь появятся сообщения.':'Переписка появится после обращения к продавцу или оформления заказа.'}</p>`,
-      form:selected&&(seller||state.community.messages)?composer(
+      form:(!seller?reviewPrompt(order):'')+(selected&&(seller||state.community.messages)?composer(
         selected.id+':'+(seller?'seller':'buyer'),'community-message',seller?'Ответ клиенту':'Сообщение магазину'
-      ):selected?'<p class="chat-empty muted">Магазин отключил приём сообщений.</p>':''
+      ):selected?'<p class="chat-empty muted">Магазин отключил приём сообщений.</p>':'')
     });
   }
 
@@ -124,6 +136,7 @@ export function messengerUI(state,{esc,money,save,go}){
   }
 
   function inbox(section,id){
+    if(section==='gifts')return tabs('gifts')+'<section class="card"><h2>Подарки друзьям</h2>'+ (giftCards()||'<p class="empty-note">Здесь появятся подарки после оплаты.</p>')+'</section>';
     if(section==='delivery')return deliveryInbox();
     if(section==='order')return shopChat(false,id);
     if(section==='shop')return shopChat(false,0);

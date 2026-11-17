@@ -91,7 +91,7 @@ export function communityUI(state, ui){
     const filters={all:'Главная',post:'Посты',clip:'Клипы',channel:'Канал'};
     const published=state.publications.filter(p=>visible(p)&&(tab==='all'||p.type===tab));
     const shelves=[
-      ['goods',c.goods,()=>card('Товары',`<div class="community-shelf">${state.products.slice(0,3).map(p=>`<div class="shelf-item">${productImage(p)}<strong>${money(p.price)}</strong><span>${esc(p.name)}</span>${productAction(p,5)}</div>`).join('')}</div>`,link(goodsPath,'Все товары','text-link'))],
+      ['goods',c.goods,()=>card('Товары',`<div class="community-shelf">${state.products.filter(p=>(p.sellerId||'bishka')==='bishka').slice(0,3).map(p=>`<div class="shelf-item">${productImage(p)}<strong>${money(p.price)}</strong><span>${esc(p.name)}</span>${productAction(p,5)}</div>`).join('')}</div>`,link(goodsPath,'Все товары','text-link'))],
       ['services',c.services,()=>card('Услуги',state.services.length?serviceRow(state.services[0],false):blank('Пока нет услуг'),link('shop-services','Все услуги','text-link'))]
     ].filter(([,enabled])=>enabled).sort(([a],[b])=>Number(b===c.priority)-Number(a===c.priority));
     const action=c.action==='inbox'&&(owner||!c.messages)?'':c.action!=='none'?link(publicTarget(c.action),esc(c.actionLabel),'btn primary'):'';
@@ -258,7 +258,7 @@ export function communityUI(state, ui){
       }
       case 'service-request': {
         const row=state.services.find(row=>row.id===index);
-        if(row&&c.messages)dialog('Заказать услугу',form('service-request',area('text','Сообщение','Здравствуйте! Хочу заказать услугу «'+row.name+'».','required'),'Отправить в сообщения',index));
+        if(row&&c.messages)dialog('Вопрос об услуге',form('service-request',area('text','Сообщение','Здравствуйте! Расскажите подробнее об услуге «'+row.name+'».','required'),'Задать вопрос',index));
         break;
       }
       case 'promo':

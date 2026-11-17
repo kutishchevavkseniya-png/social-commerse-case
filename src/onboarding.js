@@ -22,7 +22,8 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
   state.newCommunity=draft;
   delete draft.checked;
   const order=()=>draft.orders[0];
-  const chat=()=>draft.payment?.mode==='message';
+  if(draft.payment?.mode==='message')draft.payment.mode='vk';
+  const chat=()=>false;
   const source=()=>draft.publication?.format==='clip'?'VK Клипы':'Лента';
   const canPublish=()=>draft.description&&draft.product?.category&&draft.payment?.connected&&draft.delivery;
   const ready=()=>canPublish()&&draft.publication&&draft.found;
@@ -117,7 +118,7 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
     return input('product','Название товара',product?.name,'maxlength="70"')+
       input('category','Категория',product?.category,'maxlength="50" list="training-categories"')+
       '<small data-category-hint aria-live="polite"></small><datalist id="training-categories"><option>Миски и поилки</option><option>Одежда для собак</option><option>Посуда</option><option>Солнцезащитные очки</option></datalist>'+
-      area('description','Описание товара',product?.description)+
+      area('description','Описание товара',product?.description)+btn('smart-fill','✦ Заполнить по описанию','secondary')+
       input('price','Цена, ₽',product?.price,'type="number" min="1" max="1000000"')+
       input('stock','Остаток, шт.',product?.stock??1,'type="number" min="1" max="100000"');
   }
@@ -137,8 +138,8 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
         return form(step,'<p>Категория определяет, где покупатель найдёт товар в Маркете. Например, для миски подойдёт «Миски и поилки».</p>'+
           productFields(draft.product),'Опубликовать карточку');
       case 'payment':
-        return form(step,'<p>ВКонтакте покупатель оформляет и оплачивает заказ. В сообщениях покупатель задаёт вопрос, а продавец договаривается об оплате и получении. Если карточка ведёт на Ozon, заказ оформляется на площадке.</p>'+
-          select('mode','Способ покупки',{vk:'ВКонтакте · VK Pay',message:'В сообщениях'},draft.payment?.mode),'Выбрать способ');
+        return form(step,'<p>ВКонтакте покупатель оформляет заказ и выбирает VK Pay или банковскую карту. Если карточка ведёт на Ozon, заказ оформляется на площадке. Сообщения нужны для вопросов и поддержки.</p>'+
+          select('mode','Способ покупки',{vk:'ВКонтакте · VK Pay или карта'},draft.payment?.mode),'Выбрать способ');
       case 'recipient':
         if(!draft.payment?.mode)return prerequisite('Сначала выберите способ покупки.','payment');
         return form(step,chat()?area('recipient','Первый ответ',draft.payment.recipient||'Здравствуйте! Подскажите, как вам удобнее получить заказ?'):
@@ -334,7 +335,7 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
         draft.description=value('description');
         break;
       case 'payment':
-        if(!['vk','message'].includes(value('mode')))return;
+        if(!['vk'].includes(value('mode')))return;
         if(draft.payment?.mode!==value('mode'))draft.payment={mode:value('mode')};
         break;
       case 'recipient':
