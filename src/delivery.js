@@ -20,13 +20,13 @@ export function orderConfirmation(order){
   };
 }
 
-export function advanceDelivery(state,order){
-  if(!order?.demo||order.status!=='new'||order.payment!=='paid'||(order.gift&&!order.gift.accepted))return false;
-  const next=deliveryStep(order)+1;
+export function changeDelivery(state,order,direction=1){
+  if(!order?.demo||!['new','received'].includes(order.status)||order.payment!=='paid'||(order.gift&&!order.gift.accepted))return false;
+  const next=deliveryStep(order)+direction;
   const text=deliveryStages(order)[next];
   if(!text)return false;
   order.deliveryStep=next;
-  if(next===3)order.status='received';
-  state.messages.push({thread:order.id,side:'delivery',text,at:Date.now()});
+  order.status=next===3?'received':'new';
+  state.messages.push({thread:order.id,side:'delivery',text:direction<0?'Магазин уточнил статус: '+text+'.':text,at:Date.now()});
   return true;
 }

@@ -47,15 +47,15 @@ export function messengerUI(state,{esc,money,save,go}){
   }
 
   function personal(id){
-    const person=personalContacts.find(contact=>contact.id===id)||personalContacts[0];
+    const person=personalContacts.find(contact=>contact.id===id);
     const url=contact=>'inbox/personal/'+contact.id;
     const rows=personalContacts.map(contact=>({
       ...contact,href:url(contact),preview:state.personalMessages[contact.id].at(-1)?.text||'Личный диалог'
     }));
     return tabs('personal')+layout({
-      title:'Личные диалоги',rows,active:url(person),heading:person.name,caption:'Личная переписка',
-      thread:state.personalMessages[person.id].map(message=>bubble(message.text,message.outgoing)).join(''),
-      form:composer(person.id,'personal-message')
+      title:'Личные диалоги',rows,active:person&&url(person),heading:person?.name||'Выберите диалог',caption:person?'Личная переписка':'',
+      thread:person?state.personalMessages[person.id].map(message=>bubble(message.text,message.outgoing)).join(''):'<p class="chat-empty muted">Откройте переписку из списка слева.</p>',
+      form:person?composer(person.id,'personal-message'):''
     });
   }
 
@@ -72,15 +72,16 @@ export function messengerUI(state,{esc,money,save,go}){
       id:0,name:seller?'Покупатель':storeName,href:path(0),
       preview:threads.get(0).at(-1)?.text||(seller?'Вопросы о товарах и услугах':'Диалог с магазином')
     };
-    const all=[general,...orders.map(order=>({
+    const hasGeneral=state.shopChatStarted||threads.get(0).length>0;
+    const all=[...orders.map(order=>({
       id:order.id, name:seller?order.name:storeName, href:path(order.id),
       preview:'Заказ № '+order.id+' · '+order.product,
       order
-    }))];
+    })),...(hasGeneral?[general]:[])];
     const activity=row=>threads.get(row.id)?.at(-1)?.at||row.order?.createdAt||0;
     const recent=(a,b)=>activity(b)-activity(a);
     const entries=seller?all.filter(row=>[row.name,row.preview].join(' ').toLowerCase().includes(clientQuery.toLowerCase()))
-      .sort(recent):[...all.slice(1).sort(recent),general];
+      .sort(recent):all.sort(recent);
     const selected=id===undefined?entries[0]:all.find(row=>row.id===Number(id));
     const order=selected?.order;
     const messages=selected?(threads.get(selected.id)||[]):[];
@@ -91,13 +92,13 @@ export function messengerUI(state,{esc,money,save,go}){
 
     return (seller?'':tabs('purchases'))+layout({
       title:seller?'Переписки с клиентами':'Переписки с магазинами',
-      rows:entries,active:selected?.href,search,heading:selected?.name||'Диалог не найден',
+      rows:entries,active:selected?.href,search,heading:selected?.name||'Выберите переписку',
       caption:order?'Заказ № '+order.id:selected?(seller?'Обращения в магазин':'Сообщения сообщества'):'',
       context:order?`<a href="#${seller?'order':'purchase'}/${order.id}" class="btn secondary">Открыть заказ</a>`:'',
       thread:messages.length?messages.map(message=>bubble(
         message.text,message.side===(seller?'seller':'buyer'),message.side==='delivery'?deliveryLabel(order):message.side==='seller'?storeName:seller?selected.name:'Вы',
         !seller&&(message.side==='delivery'||message.kind==='order-confirmation')?`<a href="#purchase/${order.id}" class="text-link">Отследить заказ</a>`:!seller&&message.gift?`<a href="#gift/${message.gift}" class="text-link">Открыть подарок</a>`:''
-      )).join(''):`<p class="chat-empty muted">${selected&&!seller&&!order&&state.community.messages?esc(state.community.greeting):'Здесь появятся сообщения.'}</p>`,
+      )).join(''):`<p class="chat-empty muted">${selected&&!seller&&!order&&state.community.messages?esc(state.community.greeting):selected?'Здесь появятся сообщения.':'Переписка появится после обращения к продавцу или оформления заказа.'}</p>`,
       form:selected&&(seller||state.community.messages)?composer(
         selected.id+':'+(seller?'seller':'buyer'),'community-message',seller?'Ответ клиенту':'Сообщение магазину'
       ):selected?'<p class="chat-empty muted">Магазин отключил приём сообщений.</p>':''

@@ -26,10 +26,21 @@ export function marketMatch(product,query,settings){
   return words.filter(word=>!['для','с','в','доставкой','руб','до','и','за'].includes(word)).every(word=>text.includes(word));
 }
 export function suggestCategory(value){
-  if(/очк|поляризац/i.test(value))return 'Солнцезащитные очки';
-  if(/пончо|дождевик|куртк/i.test(value))return 'Одежда для собак';
-  if(/мис[коч]|поил/i.test(value))return 'Миски и поилки';
-  if(/повод|ошейн|шлейк/i.test(value))return 'Поводки и амуниция';
+  const words=value.toLowerCase().replace(/ё/g,'е').match(/[а-яa-z]+/g)||[];
+  const rules=[
+    ['Миски и поилки', ['мис','поил','кормуш']],
+    ['Одежда для собак', ['понч','дождев','комбинез','куртк']],
+    ['Поводки и амуниция', ['повод','ошейн','шлейк','амуниц']],
+    ['Игрушки для собак', ['игруш','мяч','канат']],
+    ['Солнцезащитные очки', ['очк','поляризац']],
+    ['Посуда', ['круж','тарел','стак','чаш']],
+    ['Уход за полостью рта', ['beiber','ополаскив','зубн']]
+  ];
+  for(const word of words){
+    if(word.length<3)continue;
+    const match=rules.find(([,terms])=>terms.some(term=>word.startsWith(term)||term.startsWith(word)));
+    if(match)return match[0];
+  }
   return '';
 }
 
@@ -48,5 +59,5 @@ export function ozonUrl(product){
 }
 
 export function cartModes(product){
-  return purchaseModes(product).filter(mode=>mode==='vk'&&product.stock>0||mode==='external'&&ozonUrl(product));
+  return product.stock>0?purchaseModes(product).filter(mode=>mode==='vk'||mode==='external'&&ozonUrl(product)):[];
 }

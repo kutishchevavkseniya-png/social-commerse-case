@@ -1,7 +1,7 @@
 import {icon} from './icons.js';
 import {deliveryMethods, marketMatch, quote} from './commerce.js';
 import {placeOrder, metrics} from './store.js';
-import {advanceDelivery,deliveryStages,deliveryStep} from './delivery.js';
+import {changeDelivery,deliveryStages,deliveryStep} from './delivery.js';
 
 const ownerPath='new-community/owner';
 const buyerPath='new-community/buyer';
@@ -80,7 +80,7 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
     return `<section class="card launch-guide">
       <div class="card-head"><h2>Запуск магазина</h2><span class="muted">${done} из ${steps.length} выполнено</span></div>
       <progress value="${done}" max="${steps.length}" aria-label="Прогресс запуска магазина"></progress>
-      <p class="launch-next">${next?'Следующий шаг · '+next[1]:'Вы прошли обучение'}</p>
+      <p class="launch-next">${next?(done?'Следующий шаг':'Первый шаг')+' · '+next[1]:'Вы прошли обучение'}</p>
       <nav class="launch-chapters" aria-label="Разделы обучения">${groups.map(group=>`<a href="#${ownerPath}/${group.id}" ${group===selected?'aria-current="page"':''}>${group.title} <small>${group.steps.filter(row=>row[3]).length}/${group.steps.length}</small></a>`).join('')}</nav>
       <ol class="launch-list">${selected.steps.map(([id,title,hint,complete])=>{
         const opened=id===step&&id!=='preview';
@@ -116,7 +116,7 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
   function productFields(product){
     return input('product','Название товара',product?.name,'maxlength="70"')+
       input('category','Категория',product?.category,'maxlength="50" list="training-categories"')+
-      '<datalist id="training-categories"><option>Миски и поилки</option><option>Одежда для собак</option><option>Посуда</option><option>Солнцезащитные очки</option></datalist>'+
+      '<small data-category-hint aria-live="polite"></small><datalist id="training-categories"><option>Миски и поилки</option><option>Одежда для собак</option><option>Посуда</option><option>Солнцезащитные очки</option></datalist>'+
       area('description','Описание товара',product?.description)+
       input('price','Цена, ₽',product?.price,'type="number" min="1" max="1000000"')+
       input('stock','Остаток, шт.',product?.stock??1,'type="number" min="1" max="100000"');
@@ -185,8 +185,12 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
       <p>Источник · ${esc(current.source)}</p><p>Выполнение · ${stages[active]}</p>`;
     const view=link(checkoutPath,'Посмотреть заказ покупателя','text-link');
     if(current.payment!=='paid')return `<div class="launch-step-form">${body}<p>Дождитесь подтверждения оплаты перед отправкой.</p>${view}</div>`;
-    if(active===3)return `<div class="launch-step-form">${body}${view}</div>`;
-    return form('delivery-status',body+view,stages[active+1]);
+    return `<form class="launch-step-form" data-form="onboarding" data-id="delivery-status">${body}${view}
+      <div class="actions">
+        ${active>0?'<button class="btn secondary" name="direction" value="-1">Вернуть на предыдущий этап</button>':''}
+        ${active<3?'<button class="btn primary" name="direction" value="1">'+stages[active+1]+'</button>':''}
+      </div>
+    </form>`;
   }
 
   function report(){
@@ -287,7 +291,7 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
 
   const saleConfiguration=()=>JSON.stringify([draft.product,draft.payment,draft.delivery,draft.publication]);
 
-  function submit(formNode){
+  function submit(formNode,submitter){
     const data=new FormData(formNode);
     const value=name=>String(data.get(name)||'').trim();
     const step=formNode.dataset.id;
@@ -395,7 +399,10 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
         save('Ответ появится у покупателя');
         return;
       case 'delivery-status':
-        if(advanceDelivery(draft,order()))save('Статус доставки обновлён');
+        if(changeDelivery(draft,order(),submitter?.value==='-1'?-1:1)){
+          if(order().status!=='received'){draft.report=false;draft.reportError=false;}
+          save('Статус доставки обновлён');
+        }
         return;
       case 'report':
         if(order()?.status!=='received'&&!draft.inquiry?.reply)return;

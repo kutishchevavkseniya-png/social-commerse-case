@@ -1,4 +1,5 @@
 import {marketMatch,purchaseModes,ozonUrl} from './commerce.js';
+import {productInfo} from './product-info.js';
 import {icon} from './icons.js';
 
 export const ozonSample = {
@@ -16,22 +17,27 @@ export const ozonSample = {
 };
 
 const categories = [
-  ['pets','Зоотовары','bag','green', p=>p.kind!=='beiber'],
-  ['beauty','Красота','spark','pink',p=>p.kind==='beiber'],
-  ['ozon','Товары с Ozon','box','blue',p=>purchaseModes(p).includes('external')&&ozonUrl(p)]
+  ['pets','Зоотовары','bag','green', p=>/собак|миск|поилк|поводк|амуниц/i.test(p.category)],
+  ['beauty','Красота','spark','pink',p=>p.kind==='beiber'||/красот|уход|косметик/i.test(p.category)]
 ];
 
 export function marketUI(state,{esc,link,btn,money,productImage,shop}){
   const catalog = ()=>[...state.products,ozonSample];
   const marketId = p=>[p.id,3,0,state.trials.some(row=>row.productId===p.id)?p.id:0].join(':');
-  const categoryPath = key=>key==='ozon'?'market-ozon':'market/'+key;
-  const tabs = [['market','Все товары'],['my-orders','Заказы'],['market-reviews','Отзывы']];
+  let filters={min:'',max:'',available:false,sort:''};
+  function setFilters(values={}){filters={min:'',max:'',available:false,sort:'',...values};}
+  function favorite(p){
+    const saved=state.saved.includes(p.id);
+    return btn('favorite',saved?'В избранном':'В избранное','secondary favorite-action',p.id);
+  }
+  const tabs = [['market','Все товары'],['my-orders','Заказы'],['market-saved','Избранное'],['market-reviews','Отзывы']];
   function toolbar(page,arg,query){
     const count=state.cart.reduce((sum,row)=>sum+row.quantity,0);
-    const selected=['market-ozon','market-item'].includes(page)?'market':page==='purchase'?'my-orders':page;
-    return `<section class="card market-toolbar" aria-label="VK Маркет">
+    const selected=['market-ozon','market-item','market-shop'].includes(page)?'market':page==='purchase'?'my-orders':page;
+    const catalogPage=page==='market-shop'?'market-shop':'market';
+    return `<section class="card market-toolbar"  aria-label="VK Маркет">
       <div class="market-toolbar-row">
-        <a class="market-catalog-link" href="#market" data-action="market-reset">${icon('menu',18)} Каталог</a>
+        <a class="market-catalog-link" href="#${catalogPage}" data-action="market-reset">${icon('menu',18)} Каталог</a>
         <form class="market-search" data-form="search">
           ${icon('search',18)}<input name="query" aria-label="Поиск в Маркете" placeholder="Поиск в Маркете" value="${esc(query)}">
           <button class="btn secondary" type="submit">Найти</button>
@@ -39,7 +45,7 @@ export function marketUI(state,{esc,link,btn,money,productImage,shop}){
         ${link('cart',icon('cart',20)+' Корзина'+(count?' <span class="market-count">'+count+'</span>':''),'market-cart-link')}
       </div>
       <nav class="market-categories" aria-label="Категории Маркета">
-        ${categories.map(([key,label,glyph,color])=>`<a class="market-category" href="#${categoryPath(key)}" data-action="market-reset" ${page==='market-ozon'&&key==='ozon'||page==='market'&&arg===key?'aria-current="page"':''}><span class="market-category-icon ${color}">${icon(glyph,23)}</span>${label}</a>`).join('')}
+        ${categories.map(([key,label,glyph,color])=>`<a class="market-category" href="#${catalogPage}/${key}" data-action="market-reset" ${page===catalogPage&&arg===key?'aria-current="page"':''}><span class="market-category-icon ${color}">${icon(glyph,23)}</span>${label}</a>`).join('')}
       </nav>
     </section>
     <nav class="card market-tabs" aria-label="Разделы Маркета">
@@ -58,14 +64,15 @@ export function marketUI(state,{esc,link,btn,money,productImage,shop}){
         ${open(productImage(p)+'<span class="sr-only">'+esc(p.name)+'</span>')}
         ${modes.includes('external')&&ozonUrl(p)?'<span class="market-ozon-badge">Ozon</span>':''}
         ${!modes.includes('external')&&state.trials.some(row=>row.productId===p.id)?'<span class="market-trial">Первые показы</span>':''}
-        ${!p.stock&&!modes.includes('external')?'<span class="market-stock">Нет в наличии</span>':''}
+        ${!p.stock?'<span class="market-stock">Нет в наличии</span>':''}
       </div>
       <div class="market-card-price"><strong>${money(p.price)}</strong>${p.oldPrice?'<del>'+money(p.oldPrice)+'</del>':''}</div>
       ${open('<span class="market-card-name">'+esc(p.name)+'</span>')}
       <div class="market-card-meta">${p.rating?'★ '+p.rating+' · '+p.reviewCount.toLocaleString('ru-RU')+' отзывов':esc(p.kind==='beiber'?'Ozon':state.community.name+' · '+shop.modeLabel(p))}</div>
       <div class="market-buy-actions">
-        ${modes.includes('message')&&state.community.messages?btn('product-message','Написать продавцу','secondary full',id):''}
+        ${modes.includes('message')&&state.community.messages&&p.stock?btn('product-message','Написать продавцу','secondary full',id):''}
         ${shop.cartAction(p,id,true)}
+        ${favorite(p)}
       </div>
     </article>`;
   }
@@ -75,11 +82,21 @@ export function marketUI(state,{esc,link,btn,money,productImage,shop}){
       ${products.length?`<div class="market-grid">${products.map(card).join('')}</div>`:'<p class="market-empty muted">Товары не найдены</p>'}
     </section>`;
   }
-  function home(category,query){
+  function home(category,query,scope='all'){
     const filter=categories.find(([key])=>key===category);
-    const matches=catalog().filter(p=>(!filter||filter[4](p))&&marketMatch(p,query,state.settings));
-    if(query||filter)return shelf(query?'Результаты поиска':filter[1],matches);
-    return shelf('Все товары',matches);
+    const matches=catalog().filter(p=>(scope!=='shop'||p.id!==ozonSample.id)&&
+      (scope!=='saved'||state.saved.includes(p.id))&&(!filter||filter[4](p))&&marketMatch(p,query,state.settings)&&
+      (!filters.available||p.stock>0)&&(filters.min===''||p.price>=Number(filters.min))&&
+      (filters.max===''||p.price<=Number(filters.max)));
+    if(filters.sort)matches.sort((a,b)=>filters.sort==='asc'?a.price-b.price:b.price-a.price);
+    const title=scope==='shop'?'Товары «'+esc(state.community.name)+'»':scope==='saved'?'Избранное':query?'Результаты поиска':filter?.[1]||'Все товары';
+    return `<section class="card"><form class="market-filters" data-form="market-filters">
+      <label>Цена от, ₽<input type="number" min="0" name="min" value="${esc(filters.min)}"></label>
+      <label>Цена до, ₽<input type="number" min="0" name="max" value="${esc(filters.max)}"></label>
+      <label>Сортировка<select name="sort"><option value="">По умолчанию</option><option value="asc" ${filters.sort==='asc'?'selected':''}>Сначала дешевле</option><option value="desc" ${filters.sort==='desc'?'selected':''}>Сначала дороже</option></select></label>
+      <label class="check-row"><input type="checkbox" name="available" ${filters.available?'checked':''}>В наличии</label>
+      <div class="actions"><button class="btn primary">Применить</button>${btn('market-clear-filters','Сбросить')}</div>
+    </form></section>`+shelf(title,matches);
   }
   function reviews(){
     return `<section class="card market-shelf"><div class="card-head"><h2>Отзывы о покупках</h2></div>
@@ -108,11 +125,12 @@ export function marketUI(state,{esc,link,btn,money,productImage,shop}){
             <div><dt>Объём</dt><dd>20 мл</dd></div>
             <div><dt>Артикул Ozon</dt><dd>${p.id}</dd></div>
           </dl>
-          <a class="text-link" href="${p.externalUrl}#reviews" target="_blank" rel="noopener noreferrer">Отзывы, доставка и возврат на Ozon</a>
+          <div class="product-links">${btn('product-reviews','Отзывы', 'secondary',p.id)}${btn('product-terms','Оплата, доставка и возврат','secondary',p.id)}</div>
+          ${favorite(p)}
           <p class="muted market-disclaimer">Цена и отзывы показаны по примеру со скриншота. Актуальные данные доступны на Ozon.</p>
         </div>
-      </div>
+      </div>${productInfo(p,esc)}
     </section>`;
   }
-  return {toolbar,home,reviews,detail};
+  return {toolbar,home,reviews,detail,favorite,setFilters};
 }

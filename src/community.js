@@ -45,6 +45,7 @@ const nextId = list => Math.max(0,...list.map(row=>row.id))+1;
 export function communityUI(state, ui){
   const {esc,link,btn,money,badge,dialog,save,go,productImage,table,roleSwitch}=ui;
   const c=state.community;
+  const subscribers=['Алина','Миша','Анна','Мария','Алексей','Виктория'];
   const card=(title,body,action='')=>`<section class="card"><div class="card-head"><h2>${title}</h2>${action}</div>${body}</section>`;
   const input=(name,label,value='',attrs='')=>`<label>${label}<input name="${name}" value="${esc(value)}" ${attrs}></label>`;
   const area=(name,label,value='',attrs='')=>`<label>${label}<textarea name="${name}" rows="3" maxlength="900" ${attrs}>${esc(value)}</textarea></label>`;
@@ -52,7 +53,7 @@ export function communityUI(state, ui){
   const select=(name,label,options,value)=>`<label>${label}<select name="${name}">${Object.entries(options).map(([k,v])=>`<option value="${k}" ${String(value)===k?'selected':''}>${esc(v)}</option>`).join('')}</select></label>`;
   const form=(name,body,label='Сохранить',id='')=>`<form data-form="community-${name}" data-id="${id}">${body}<button class="btn primary">${label}</button></form>`;
   const listNav=(items,active)=>`<nav class="local-nav" aria-label="Разделы сообщества">${Object.entries(items).map(([url,label])=>`<a href="#${url}" ${url===active?'aria-current="page"':''}>${label}</a>`).join('')}</nav>`;
-  const publicTarget=url=>({inbox:'inbox/shop',services:'shop-services'})[url]||url;
+  const publicTarget=url=>({inbox:'inbox/shop',services:'shop-services',market:'market-shop'})[url]||url;
   const blank=message=>`<p class="empty-note">${message}</p>`;
   const visible = p => p.type==='clip'?c.clips:p.type==='channel'?c.channel:c.posts;
   const productAction=(p,source,label='Открыть товар',publication=0)=>btn('open-product',label,'secondary',`${p.id}:${source}:${publication}`);
@@ -61,9 +62,9 @@ export function communityUI(state, ui){
     const id=`${product.id}:${source}:${publication}`;
     const modes=purchaseModes(product);
     const messageOnly=modes.length===1&&modes[0]==='message'&&c.messages;
-    return `<button type="button" class="media-product-tag" data-action="${messageOnly?'product-message':'open-product'}" data-id="${id}">
+    return `<button type="button" class="media-product-tag" data-action="${messageOnly?'product-message':'open-product'}" data-id="${id}" aria-label="${messageOnly?'Написать продавцу: ':'Открыть товар: '}${esc(product.name)}">
       ${productImage(product)}<span class="media-product-name"><strong>${esc(product.name)}</strong><small>${money(product.price)}</small></span>
-      <span class="media-product-cta">${messageOnly?'Написать':'Смотреть товар'} ${icon('arrow',15)}</span>
+      <span class="media-product-cta">${messageOnly?'Написать':'К товару'} ${icon('arrow',15)}</span>
     </button>`;
   }
 
@@ -86,17 +87,17 @@ export function communityUI(state, ui){
   }
   function home(tab,owner){
     const path='community/'+(owner?'owner':'buyer');
-    const goodsPath=owner?'products':'market';
+    const goodsPath=owner?'products':'market-shop';
     const filters={all:'Главная',post:'Посты',clip:'Клипы',channel:'Канал'};
     const published=state.publications.filter(p=>visible(p)&&(tab==='all'||p.type===tab));
     const shelves=[
       ['goods',c.goods,()=>card('Товары',`<div class="community-shelf">${state.products.slice(0,3).map(p=>`<div class="shelf-item">${productImage(p)}<strong>${money(p.price)}</strong><span>${esc(p.name)}</span>${productAction(p,5)}</div>`).join('')}</div>`,link(goodsPath,'Все товары','text-link'))],
       ['services',c.services,()=>card('Услуги',state.services.length?serviceRow(state.services[0],false):blank('Пока нет услуг'),link('shop-services','Все услуги','text-link'))]
     ].filter(([,enabled])=>enabled).sort(([a],[b])=>Number(b===c.priority)-Number(a===c.priority));
-    const action=c.action==='inbox'&&!c.messages?'':c.action!=='none'?link(publicTarget(c.action),esc(c.actionLabel),'btn primary'):'';
+    const action=c.action==='inbox'&&(owner||!c.messages)?'':c.action!=='none'?link(publicTarget(c.action),esc(c.actionLabel),'btn primary'):'';
     return `<section class="card community-hero"><div class="community-cover"></div>
       <div class="community-identity">${avatar}<div><h1>${esc(c.name)}</h1><p class="muted">Товары и услуги для собак</p></div>
-      <div class="actions">${action}${btn('community-follow',c.following?'Вы подписаны':'Подписаться')}${c.messages&&c.action!=='inbox'?link('inbox/shop','Написать магазину','btn secondary'):''}</div></div>
+      <div class="actions">${action}${btn('community-follow',c.following?'Вы подписаны':'Подписаться')}${!owner&&c.messages&&c.action!=='inbox'?link('inbox/shop','Написать продавцу','btn secondary'):''}</div></div>
       ${roleSwitch('community',owner)}
       <nav class="tabs community-tabs" aria-label="Страница сообщества">${Object.entries(filters).filter(([key])=>({all:true,post:c.posts,clip:c.clips,channel:c.channel}[key])).map(([key,label])=>`<a href="#${path}/${key}" ${key===tab?'aria-current="page"':''}>${label}</a>`).join('')}${owner?link(goodsPath,'Товары'):''}</nav></section>
       ${owner?card('Управление сообществом',`<div class="actions">
@@ -107,7 +108,8 @@ export function communityUI(state, ui){
         ${tab==='all'?shelves.map(([, ,draw])=>draw()).join(''):''}
         ${card(filters[tab]==='Главная'?'Публикации':filters[tab],published.length?published.map(p=>publication(p,true)).join(''):blank('Здесь пока нет публикаций.'))}
       </div><aside class="community-stack">${card('О сообществе',`<p class="preline">${esc(c.about)}</p><p class="muted">${[c.address,c.city].filter(Boolean).map(esc).join(', ')}</p><p class="muted">${esc(c.hours)}</p>${c.links.map(l=>`<a class="text-link" href="${esc(safeUrl(l.url))}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a>`).join('')}`)}
-      ${card('Быстрые ссылки',listNav(Object.fromEntries(c.menu.filter(url=>url!=='inbox'||c.messages).map(url=>[url==='market'?goodsPath:publicTarget(url),targets[url]]).concat([['cart','Корзина'],['my-orders','Мои заказы']])),''))}</aside></div>`;
+      ${card('Подписчики <span class="muted">'+(129+Number(c.following))+'</span>',`<div class="community-subscribers">${subscribers.slice(0,4).map((name,i)=>`<span><i class="chat-avatar ${i%2?'orange':'blue'}" aria-hidden="true">${name[0]}</i><small>${name}</small></span>`).join('')}</div>`,btn('community-subscribers','Показать','secondary'))}
+      ${card('Быстрые ссылки',listNav(Object.fromEntries(c.menu.filter(url=>url!=='inbox'||(!owner&&c.messages)).map(url=>[url==='market'?goodsPath:publicTarget(url),targets[url]]).concat([['cart','Корзина'],['my-orders','Мои заказы']])),''))}</aside></div>`;
   }
   function clipPage(clipId){
     const clips=state.publications.filter(p=>p.type==='clip'&&visible(p));
@@ -116,9 +118,9 @@ export function communityUI(state, ui){
     if(!clip)return card('VK Клипы',blank('Клипы пока не опубликованы.'));
 
     const product=state.products.find(p=>p.id===clip.product);
-    const demoVideo=clip.id===1;
+    const demoVideo=clip.id===1||clip.video==='poncho';
     const player=demoVideo
-      ? '<video class="clip-player" src="./public/media/poncho-clip.mp4" poster="./public/media/poncho.webp" aria-label="Деморолик о пончо Бишки" controls muted autoplay loop playsinline preload="metadata">Ваш браузер не поддерживает видео.</video>'
+      ? '<video class="clip-player" data-publication="'+clip.id+'" src="./public/media/poncho-clip.mp4" poster="./public/media/poncho.webp" aria-label="Деморолик о пончо Бишки" controls muted autoplay loop playsinline preload="metadata">Ваш браузер не поддерживает видео.</video>'
       : '<div class="clip-no-video"><span>У этого клипа пока нет видео</span></div>';
     const attachment=product?`<div class="clip-media-tag" aria-label="Товар из клипа">${productTag(product,0,clip.id)}</div>`:'';
     const more=clips.length>1?`<nav class="clip-more" aria-label="Другие клипы">${clips.filter(p=>p.id!==clip.id).map(p=>link('clips/'+p.id,esc(p.title),'btn secondary')).join('')}</nav>`:'';
@@ -221,11 +223,19 @@ export function communityUI(state, ui){
     switch(name){
       case 'follow': c.following=!c.following;save(c.following?'Вы подписаны':'Подписка отменена');break;
       case 'remove-link': c.links.splice(index,1);change('Ссылка убрана из сообщества');break;
+      case 'subscribers':
+        dialog('Подписчики',`<div class="community-subscribers">${subscribers.map(name=>`<span><i class="chat-avatar" aria-hidden="true">${name[0]}</i><small>${name}</small></span>`).join('')}</div><p class="muted">Пример списка подписчиков в демо.</p>`);
+        break;
       case 'compose':
-        dialog('Создать публикацию',form('publish',select('type','Формат',types,'post')+
-          input('title','Заголовок','','required maxlength="70"')+area('text','Текст публикации','','required')+
-          select('product','Прикрепить товар',Object.fromEntries([['0','Без товара'],...state.products.map(p=>[p.id,p.name])]),0)+
-          toggle('poster','Добавить обложку с пончо',false),'Опубликовать'));
+        dialog('Новая публикация',`<form data-form="community-publish" class="publication-composer">
+          <div class="community-item">${avatar}<strong>${esc(c.name)}</strong></div>
+          <div class="field-grid">${select('type','Формат',types,'post')}${input('title','Заголовок','','required maxlength="70" placeholder="О чём публикация?"')}</div>
+          ${area('text','Текст публикации','','required placeholder="Расскажите, зачем пригодится товар или как им пользоваться"')}
+          ${select('product','Товар в публикации',Object.fromEntries([['0','Без товара'],...state.products.map(p=>[p.id,p.name])]),0)}
+          <div class="composer-preview" hidden></div>
+          <label data-clip-choice hidden>Видео<select name="video" disabled><option value="">Выберите видео</option><option value="poncho">Деморолик: пончо на прогулке</option></select></label>
+          <div class="actions"><button class="btn primary">Опубликовать</button></div>
+        </form>`);
         break;
       case 'moderate': {
         const comment=state.comments.find(row=>row.id===index);
@@ -319,7 +329,7 @@ export function communityUI(state, ui){
       case 'publish': {
         if(!value('title')||!value('text'))return;
         const type=value('type');
-        state.publications.unshift({id:nextId(state.publications),type,title:value('title'),text:value('text'),product:+value('product'),poster:data.has('poster')?'poncho':''});
+        state.publications.unshift({id:nextId(state.publications),type,title:value('title'),text:value('text'),product:+value('product'),poster:state.products.find(p=>p.id===+value('product'))?.kind==='poncho'?'poncho':'',video:type==='clip'?value('video'):''});
         if(type==='clip')c.clips=true;
         if(type==='post')c.posts=true;
         if(type==='channel')c.channel=true;
