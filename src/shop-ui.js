@@ -1,8 +1,8 @@
 import {friends,sellers} from './ecosystem.js';
 import {availableDelivery,deliveryMethods,arrivalDate,ozonPoints,quote,purchaseLabels,purchaseModes,cartModes,ozonUrl} from './commerce.js';
 
-export function shopUI(state,{esc,btn,link,money,table,ozonSample}){
-  const findProduct=id=>state.products.find(p=>p.id===id) || (id===ozonSample.id?ozonSample:null);
+export function shopUI(state,{esc,btn,link,money,table,partnerProducts}){
+  const findProduct=id=>state.products.find(p=>p.id===id) || partnerProducts.find(p=>p.id===id);
   const modeLabel=p=>purchaseModes(p).map(mode=>purchaseLabels[mode]).filter(Boolean).join(' · ');
   const buyable=p=>purchaseModes(p).includes('vk');
   const cartItems=()=>state.cart.map(item=>{

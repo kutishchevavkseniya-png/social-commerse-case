@@ -1,7 +1,7 @@
 import {initEcosystem,ecosystemUI,illustration,friends} from './ecosystem.js';
 import {initCommunity,communityUI} from './community.js';
 import {shopUI} from './shop-ui.js';
-import {marketUI,ozonSample} from './market-ui.js';
+import {marketUI,partnerProducts} from './market-ui.js';
 import {availableDelivery,deliveryMethods,ozonPoints,arrivalDate,marketMatch,quote,suggestCategory,purchaseModes,purchaseLabels,ozonUrl,cartModes} from './commerce.js';
 import {channels, initialState, metrics, ready, placeOrder, placeOrders} from './store.js';
 import {changeDelivery,deliveryStages,deliveryStep,deliveryLabel} from './delivery.js';
@@ -48,7 +48,7 @@ function startShopChat(){
 let channel = 0;
 let orderFilter = 'all';
 let marketQuery = '';
-const marketPages = new Set(['market','market-shop','market-saved','market-ozon','market-item','market-reviews','for-you','authors','referrals','cart','my-orders']);
+const marketPages = new Set(['market','market-shop','market-saved','market-ozon','market-item','market-reviews','for-you','authors','referrals','cart','my-orders','support']);
 let toastTimer;
 const businessSections = [
   {label:'Обзор',pages:{business:'Обзор','vk-start':'VK Start'}},
@@ -94,19 +94,23 @@ function table(headers,rows,empty='Здесь пока ничего нет'){
     (rows.length ? rows.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('') : '<tr><td colspan="'+headers.length+'">'+empty+'</td></tr>')+
     '</tbody></table></div>';
 }
+const demoPhotos={2:'bowl',3:'lead',101:'coat',102:'bowl-cloud',103:'lead',104:'ball',105:'mug',106:'vase',
+  107:'organizer',108:'soap',109:'cream',110:'brush',111:'harness',112:'candle'};
 function productImage(p){
   if(p.cover)return '<img src="'+esc(p.cover)+'" alt="'+esc(p.name)+'">';
   if(p.kind==='beiber') return '<img src="./public/media/beiber-ozon.webp" alt="Спрей BEIBER «Сочный арбуз»">';
   if(p.kind==='poncho') return '<img src="./public/media/poncho.webp" alt="Собака в синем пончо">';
+  const photo=demoPhotos[p.id]||(p.kind==='rope-toy'?'rope-toy':null)||partnerProducts.find(item=>item.id===p.id)?.kind;
+  if(photo)return '<img src="./public/media/catalog/'+photo+'.webp" alt="'+esc(p.name)+'" loading="lazy" decoding="async">';
   return illustration(p);
 }
 const onboarding=onboardingUI(state,{esc,link,money,save,go,btn,dialog,closeDialog:()=>modal.close()});
 const community=communityUI(state,{esc,link,btn,money,badge,dialog,save,go,productImage,table,roleSwitch:onboarding.roleSwitch});
 const messenger=messengerUI(state,{esc,money,save,go});
-const shop=shopUI(state,{esc,link,btn,money,table,ozonSample});
+const shop=shopUI(state,{esc,link,btn,money,table,partnerProducts});
 const marketView=marketUI(state,{esc,link,btn,money,productImage,shop});
 const features=caseFeatures(state,{esc,link,btn,money,table,save,go,card:marketView.card,record,toast:saveMessage});
-const ecosystem=ecosystemUI(state,{esc,btn,link,money,dialog,save,go,productImage,findProduct:shop.findProduct,ozonSample,card:marketView.card,cartAction:shop.cartAction,toast:saveMessage,variantButtons:features.variantButtons});
+const ecosystem=ecosystemUI(state,{esc,btn,link,money,dialog,save,go,productImage,findProduct:shop.findProduct,partnerProducts,card:marketView.card,cartAction:shop.cartAction,toast:saveMessage,variantButtons:features.variantButtons});
 let orderSearch='';
 let orderStatus='all';
 const orderSource=o=>Array.from(new Set((o.items?.map(item=>item.source)||[o.source]).filter(value=>channels.includes(value)))).join(' · ')||channels[4];
@@ -304,8 +308,8 @@ function rewardReferral(order){
 function buyerOrders(){
   return '<section class="card"><div class="card-head"><h2>Мои заказы</h2></div>'+table(['Заказ','Товар','Сумма','Оплата','Выполнение'],state.orders.filter(o=>o.demo).map(o=>[link('purchase/'+o.id,'№ '+o.id,'text-link'),esc(o.product),money(o.total),paymentBadge(o),o.status==='new'?deliveryStages(o)[deliveryStep(o)]:orderText[o.status]]),'Оформите первый заказ на витрине.')+'</section>';
 }
-const nav = [['home','Моя страница'],['news','Лента','feed'],['chat','Мессенджер','inbox'],['people','Друзья'],['people','Сообщества','communities'],['music','Музыка'],['play','Видео'],['play','Клипы','clips'],['game','Игры'],['bag','Маркет','market'],['card','VK Pay','wallet'],['chat','Поддержка VK','support'],['bag','Мой бизнес','business']];
-const routes={...community.views,...features.routes,product:ecosystem.product,seller:ecosystem.sellerPage,wallet:ecosystem.wallet,notifications:ecosystem.notices,support:ecosystem.support,questions:ecosystem.questions,'bot-settings':ecosystem.bots,communities:onboarding.list,'new-community':onboarding.page,business:overview,inbox:messenger.inbox,clients:messenger.clients,content,products,orders,payments,settings,market:category=>marketView.home(category,marketQuery),'market-shop':category=>marketView.home(category,marketQuery,'shop'),'market-saved':()=>marketView.home('',marketQuery,'saved'),'market-ozon':()=>marketView.home('',marketQuery),'market-item':marketView.detail,
+const nav = [['home','Моя страница'],['news','Лента','feed'],['chat','Мессенджер','inbox'],['people','Друзья'],['people','Сообщества','communities'],['music','Музыка'],['play','Видео'],['play','Клипы','clips'],['game','Игры'],['bag','Маркет','market'],['card','VK Pay','wallet'],['bag','Мой бизнес','business']];
+const routes={...community.views,...features.routes,product:ecosystem.product,seller:ecosystem.sellerPage,wallet:ecosystem.wallet,notifications:ecosystem.notices,support:ecosystem.support,questions:ecosystem.questions,'bot-settings':ecosystem.bots,communities:onboarding.list,'new-community':onboarding.page,business:overview,inbox:messenger.inbox,clients:messenger.clients,content,products,orders,payments,settings,market:category=>marketView.home(category,marketQuery),'market-shop':category=>marketView.home(category,marketQuery,'shop'),'market-saved':()=>marketView.home('',marketQuery,'saved'),'market-ozon':category=>marketView.home(category,marketQuery,'ozon'),
   integrations:ecosystem.integrations,'market-reviews':marketView.reviews,gift:giftView,cart:shop.cart,'my-orders':buyerOrders,order:id=>orderDetail(Number(id),false),purchase:id=>orderDetail(Number(id),true)};
 function businessHeader(page){
   const current=page==='order'?'orders':page;
@@ -360,7 +364,7 @@ function render(){
       const className='nav-item'+(target==='business'?' business-entry':'')+(target===activeNav?' active':'');
       return '<a href="#'+target+'" aria-label="'+label+'" class="'+className+'" '+(target===activeNav?'aria-current="page"':'')+'>'+icon(glyph,19)+'<span>'+label+'</span></a>';
     }).join('')+'</nav><div class="nav-foot">Демо для VK Case Champ</div></aside>'+
-    '<main>'+header+body+'</main></div>'+link('support','Помощь VK','btn secondary support-entry');
+    '<main>'+header+body+'</main></div>';
   refreshLessonSpotlight();
   const player=app.querySelector('.clip-player');
   if(player){
@@ -661,14 +665,15 @@ document.addEventListener('submit',async event=>{
         break;
       }
       marketView.setFilters({min:value('min'),max:value('max'),available:f.has('available'),sort:value('sort'),days:value('days'),seller:value('seller')});
-      const scope=location.hash.startsWith('#market-shop')?'market-shop':location.hash.startsWith('#market-saved')?'market-saved':'market';
+      const current=location.hash.slice(1).split('/')[0];
+      const scope=['market-shop','market-saved','market-ozon'].includes(current)?current:'market';
       const route=scope+(value('category')?'/'+value('category'):'');
       if(location.hash==='#'+route){render();recordTrialImpressions();}else go(route);
       break;
     case 'search':
       marketQuery=value('query');
       if(marketQuery){state.case.queries=[marketQuery.slice(0,100),...state.case.queries.filter(q=>q!==marketQuery)].slice(0,12);localStorage.setItem(key,JSON.stringify(state));}
-      if(/^#(?:market|market-shop|market-saved)(?:\/|$)/.test(location.hash)){render();recordTrialImpressions();}
+      if(/^#(?:market|market-shop|market-saved|market-ozon)(?:\/|$)/.test(location.hash)){render();recordTrialImpressions();}
       else go('market');
       break;
     case 'order-note': {
