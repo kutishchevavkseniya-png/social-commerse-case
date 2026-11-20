@@ -1,6 +1,8 @@
 export const deliveryMethods = {
-  courier:'Курьером', pickup:'Самовывоз', cdek:'СДЭК', post:'Почта России', boxberry:'Boxberry'
+  ozon:'ПВЗ Ozon · демо', courier:'Курьером', pickup:'Самовывоз', cdek:'СДЭК', post:'Почта России', boxberry:'Boxberry'
 };
+export const ozonPoints = ['Москва, ул. Арбат, 15','Москва, ул. Тверская, 8','Москва, Ленинградский проспект, 39'];
+export const arrivalDate = days => new Date(Date.now()+days*86400000).toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
 export function availableDelivery(settings){
   return settings.delivery ? (settings.deliveryMethods ?? ['courier']).filter(code=>Object.hasOwn(deliveryMethods,code)) : [];
 }
@@ -67,6 +69,6 @@ export function productQuote(settings,items,method,promo){
  const subtotal=items.reduce((n,r)=>n+r.product.price*r.quantity,0),q=quote(settings,subtotal,method,promo);
  const fees=items.map(r=>r.product.deliveryPrice).filter(Number.isFinite);
  if(method!=='pickup'&&fees.length){q.fee=Math.max(...fees);q.total=subtotal-q.discount+q.fee;}
- if(method!=='pickup')q.days=Math.max(q.days,...items.map(r=>r.product.deliveryDays||0));
+ if(method!=='pickup')q.days=Math.max(q.days,...items.map(r=>(r.product.deliveryDays||0)+Number(settings.packingDays||0)));
  return q;
 }

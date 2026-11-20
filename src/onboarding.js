@@ -12,6 +12,7 @@ const examples={
   promotion:['content','Контент и каналы'],
   operations:['orders','Заказы']
 };
+const coach=(control,note)=>`<span class="lesson-anchor" data-lesson-note="${note}">${control}</span>`;
 const initialDraft=()=>({
   name:'Новое сообщество',description:'',product:null,payment:null,delivery:null,
   publication:null,found:false,orders:[],messages:[],extraProducts:[],report:false
@@ -70,30 +71,53 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
     </section>`;
   }
 
-  function guide(step){
-    const groups=chapters();
+  function currentChapter(groups,step){
+    return groups.find(group=>group.id===step||group.steps.some(row=>row[0]===step))
+      ||groups.find(group=>group.steps.some(row=>!row[3]))||groups.at(-1);
+  }
+
+  function journey(groups,selected){
+    const icons=['bag','card','play','check'];
     const steps=groups.flatMap(group=>group.steps);
     const done=steps.filter(row=>row[3]).length;
+    return `<section class="card lesson-journey" aria-labelledby="lesson-journey-title">
+      <div class="card-head">
+        <div><h2 id="lesson-journey-title">Как запустить магазин</h2><p class="muted">${done} из ${steps.length} шагов выполнено</p></div>
+        <button class="lesson-toggle btn secondary" type="button" data-lesson-toggle aria-pressed="true">${icon('spark',18)} Подсказки</button>
+      </div>
+      <nav class="lesson-stages" aria-label="Этапы обучения">${groups.map((group,i)=>{
+        const count=group.steps.filter(row=>row[3]).length;
+        const complete=count===group.steps.length;
+        return `<a class="lesson-stage ${complete?'lesson-stage-done':''}" href="#${ownerPath}/${group.id}" ${group===selected?'aria-current="step"':''}>
+          <span class="lesson-stage-icon">${icon(icons[i],19)}</span><strong>${group.title}</strong>
+          <span class="lesson-stage-progress"><progress value="${count}" max="${group.steps.length}" aria-label="Выполнено шагов: ${group.title}"></progress><small>${count}/${group.steps.length}</small></span>
+        </a>`;
+      }).join('')}</nav>
+    </section>`;
+  }
+
+  function guide(step,groups,selected){
+    const steps=groups.flatMap(group=>group.steps);
     const next=steps.find(row=>!row[3]);
-    const selected=groups.find(group=>group.id===step||group.steps.some(row=>row[0]===step))
-      ||groups.find(group=>group.steps.some(row=>!row[3]))||groups.at(-1);
+    const chapterNext=selected.steps.find(row=>!row[3])||selected.steps[0];
+    const lessonOpen=selected.steps.some(row=>row[0]===step&&step!=='preview');
     const [examplePath,exampleLabel]=examples[selected.id];
     return `<section class="card launch-guide">
-      <div class="card-head"><h2>Запуск магазина</h2><span class="muted">${done} из ${steps.length} выполнено</span></div>
-      <progress value="${done}" max="${steps.length}" aria-label="Прогресс запуска магазина"></progress>
-      <p class="launch-next">${next?(done?'Следующий шаг':'Первый шаг')+' · '+next[1]:'Вы прошли обучение'}</p>
-      <nav class="launch-chapters" aria-label="Разделы обучения">${groups.map(group=>`<a href="#${ownerPath}/${group.id}" ${group===selected?'aria-current="page"':''}>${group.title} <small>${group.steps.filter(row=>row[3]).length}/${group.steps.length}</small></a>`).join('')}</nav>
+      <header class="launch-heading"><span class="launch-heading-icon">${icon('bag',22)}</span><div><h2>${selected.title}</h2><p class="muted">${next?'Следующий шаг · '+next[1]:'Вы прошли обучение'}</p></div></header>
       <ol class="launch-list">${selected.steps.map(([id,title,hint,complete])=>{
         const opened=id===step&&id!=='preview';
-        const isNext=id===next?.[0];
+        const isNext=id===next?.[0]||!lessonOpen&&!!next&&id===chapterNext[0];
         const href=id==='preview'?buyerPath+'/posts':ownerPath+'/'+id;
+        const control=link(opened?ownerPath+'/'+selected.id:href,opened?'Свернуть':id==='preview'?'Попробовать':'Открыть','btn '+(isNext&&!opened?'primary':'secondary'));
+        const annotated=isNext&&!lessonOpen;
         return `<li class="${isNext?'launch-current':''}" ${isNext?'aria-current="step"':''}>
           <span class="launch-step-icon ${complete?'done':''}" aria-hidden="true">${complete?icon('check',15):steps.findIndex(row=>row[0]===id)+1}</span>
           <div><strong>${title}</strong><small>${hint}</small>${complete?'<span class="sr-only">Выполнено</span>':''}</div>
-          ${link(opened?ownerPath+'/'+selected.id:href,opened?'Свернуть':id==='preview'?'Попробовать':'Открыть','btn '+(isNext&&!opened?'primary':'secondary'))}
+          ${annotated?coach(control,id==='preview'?'Откройте публикацию как покупатель.':'Откройте следующий шаг обучения.'):control}
           ${opened?lesson(id):''}
         </li>`;
       }).join('')}</ol>
+      ${!next?'<p class="training-success">Вы настроили витрину и провели заказ от публикации до получения.</p>':''}
       <div class="launch-footer">
         ${link(examplePath,'«Мой бизнес → '+exampleLabel+'» на примере Бишки','text-link')}
         ${btn('training-reset','Сбросить демо','secondary')}
@@ -107,7 +131,7 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
     `<option value="${id}" ${value===id?'selected':''}>${text}</option>`
   ).join('')}</select></label>`;
   const form=(step,fields,label='Сохранить')=>`<form class="launch-step-form" data-form="onboarding" data-id="${step}">${fields}<button class="btn primary">${label}</button></form>`;
-  const prerequisite=(text,step)=>`<div class="launch-step-form"><p>${text}</p>${link(ownerPath+'/'+step,'Открыть шаг','text-link')}</div>`;
+  const prerequisite=(text,step)=>`<div class="launch-step-form"><p>${text}</p>${coach(link(ownerPath+'/'+step,'Открыть шаг','btn secondary'),'Откройте этот шаг, чтобы заполнить недостающие настройки.')}</div>`;
   const statusLabel=current=>({unpaid:'Не оплачено',processing:'Оплата обрабатывается',paid:'Оплачено',failed:'Оплата не прошла'})[current.payment];
   const settings=()=>({
     payment:draft.payment?.connected,delivery:!!draft.delivery,deliveryMethods:[draft.delivery?.method],
@@ -116,9 +140,9 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
 
   function productFields(product){
     return input('product','Название товара',product?.name,'maxlength="70"')+
+      area('description','Описание товара',product?.description)+btn('smart-fill','✦ Заполнить по описанию','secondary')+
       input('category','Категория',product?.category,'maxlength="50" list="training-categories"')+
       '<small data-category-hint aria-live="polite"></small><datalist id="training-categories"><option>Миски и поилки</option><option>Одежда для собак</option><option>Посуда</option><option>Солнцезащитные очки</option></datalist>'+
-      area('description','Описание товара',product?.description)+btn('smart-fill','✦ Заполнить по описанию','secondary')+
       input('price','Цена, ₽',product?.price,'type="number" min="1" max="1000000"')+
       input('stock','Остаток, шт.',product?.stock??1,'type="number" min="1" max="100000"');
   }
@@ -179,17 +203,17 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
       area('reply','Ответ покупателю',draft.inquiry.reply||draft.payment.recipient),'Сохранить ответ');
     const current=order();
     if(!current)return `<div class="launch-step-form"><p>Сначала откройте товар глазами покупателя и оформите пробный заказ.</p>
-      ${link(buyerPath+'/posts','К публикации','text-link')}</div>`;
+      ${coach(link(buyerPath+'/posts','К публикации','btn secondary'),'Откройте публикацию и оформите пробный заказ.')}</div>`;
     const stages=deliveryStages(current);
     const active=deliveryStep(current);
     const body=`<p><strong>Заказ № ${current.id}</strong> · ${money(current.total)} · ${statusLabel(current)}</p>
       <p>Источник · ${esc(current.source)}</p><p>Выполнение · ${stages[active]}</p>`;
     const view=link(checkoutPath,'Посмотреть заказ покупателя','text-link');
-    if(current.payment!=='paid')return `<div class="launch-step-form">${body}<p>Дождитесь подтверждения оплаты перед отправкой.</p>${view}</div>`;
+    if(current.payment!=='paid')return `<div class="launch-step-form">${body}<p>Дождитесь подтверждения оплаты перед отправкой.</p>${coach(view,'Перейдите к заказу покупателя и завершите тестовую оплату.')}</div>`;
     return `<form class="launch-step-form" data-form="onboarding" data-id="delivery-status">${body}${view}
       <div class="actions">
         ${active>0?'<button class="btn secondary" name="direction" value="-1">Вернуть на предыдущий этап</button>':''}
-        ${active<3?'<button class="btn primary" name="direction" value="1">'+stages[active+1]+'</button>':''}
+        ${active<3?coach('<button class="btn primary" name="direction" value="1">'+stages[active+1]+'</button>','Обновите статус заказа. Покупатель увидит его в уведомлениях.'):coach(link(ownerPath+'/report','К статистике','btn primary'),'Заказ получен. Проверьте, откуда пришёл покупатель.')}
       </div>
     </form>`;
   }
@@ -198,6 +222,8 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
     const current=order();
     if(current?.status!=='received'&&!draft.inquiry?.reply)
       return prerequisite('Сначала обработайте пробный заказ или ответьте покупателю.','fulfill');
+    if(draft.report)return `<div class="launch-step-form training-success" role="status"><strong>Обучение завершено</strong>
+      <p>Источник заказа · ${esc(source())}</p>${link(ownerPath,'К списку шагов','btn secondary')}</div>`;
     const summary=metrics(draft.orders);
     const outcome=current?`<p>Оформлено на ${money(summary.amount)} · Подтверждено оплат на ${money(summary.revenue)}</p>`
       :'<p>Получено 1 обращение · Отправлен ответ покупателю</p>';
@@ -206,30 +232,33 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
       ${draft.reportError?'<p role="status">Сверьте ответ с источником в сводке.</p>':''}`,'Проверить ответ');
   }
 
-  function posts(owner){
+  function posts(owner,lessonTab){
     const p=draft.publication;
     return `<section class="card"><div class="card-head"><h2>Публикации</h2></div>
       ${p?`<article class="publication"><small>${source()}</small><strong>${esc(p.title)}</strong><p class="preline">${esc(p.text)}</p>
-      ${link(owner?ownerPath+'/goods':buyerPath+'/checkout',icon('bag',17)+' '+esc(draft.product.name)+' · '+money(draft.product.price),'btn secondary')}</article>`
-      :'<p class="empty-note">Здесь пока нет публикаций.</p>'}</section>`;
+      ${owner?(lessonTab?coach(link(buyerPath+'/posts','Открыть глазами покупателя','btn secondary'),'Откройте публикацию от лица покупателя и нажмите на товар.'):link(ownerPath+'/goods',esc(draft.product.name)+' · '+money(draft.product.price),'btn secondary')):
+        coach(link(buyerPath+'/checkout',icon('bag',17)+' '+esc(draft.product.name)+' · '+money(draft.product.price),'btn secondary'),
+          'Нажмите на товар, чтобы открыть оформление.')}</article>`
+      :`<p class="empty-note">Здесь пока нет публикаций.</p>${!owner||lessonTab?coach(link(ownerPath+'/publish','К публикации товара','btn secondary'),'Откройте настройку публикации и прикрепите товар.'):''}`}</section>`;
   }
 
-  function goods(owner,viaPost){
+  function goods(owner,viaPost,lessonTab){
     const products=draft.product?[{...draft.product,id:'first'},...draft.extraProducts]:[];
+    const add=btn('training-product','Добавить товар','primary');
     return `<section class="card training-preview">
-      <div class="card-head"><h2>Товары</h2>${owner?btn('training-product','Добавить товар','primary'):''}</div>
+      <div class="card-head"><h2>Товары</h2>${owner?(lessonTab?coach(add,'Добавьте товар, который появится на витрине.'):add):''}</div>
       ${products.map(p=>`<article class="message-row"><div class="card-head"><div class="item">
         <span class="community-new-icon">${icon('bag',23)}</span><div><strong>${esc(p.name)}</strong><small>${money(p.price)} · ${esc(p.category)}</small></div>
       </div>${owner?btn('training-product','Изменить','secondary',p.id):''}</div>
       ${p.description?`<p class="preline">${esc(p.description)}</p>`:''}
-      ${!owner&&p.id==='first'?(viaPost||order()||draft.inquiry?buyerExercise():draft.publication?link(buyerPath+'/posts','К публикации с товаром','btn secondary space-top'):''):''}
-      </article>`).join('')||'<p class="empty-note">Товаров пока нет.</p>'}
+      ${!owner&&p.id==='first'?(viaPost||order()||draft.inquiry?buyerExercise():draft.publication?coach(link(buyerPath+'/posts','К публикации с товаром','btn secondary space-top'),'Откройте публикацию, чтобы начать пробную покупку.'):''):''}
+      </article>`).join('')||`<p class="empty-note">Товаров пока нет.</p>${owner?'':coach(link(ownerPath+'/product','К настройке витрины','btn secondary'),'В режиме продавца добавьте первый товар.')}`}
     </section>`;
   }
 
   function buyerExercise(){
     if(!ready())return `<div class="training-exercise"><p>Сначала закончите настройку покупки и найдите товар в учебном Маркете.</p>
-      ${link(ownerPath,'Вернуться к запуску','text-link')}</div>`;
+      ${coach(link(ownerPath,'Вернуться к запуску','btn secondary'),'Вернитесь к настройкам магазина и выполните оставшиеся шаги.')}</div>`;
     if(chat()){
       if(draft.inquiry)return `<div class="training-success"><strong>Переписка с магазином</strong><p>Вы: ${esc(draft.inquiry.text)}</p>
         ${draft.inquiry.reply?`<p>${esc(draft.name)}: ${esc(draft.inquiry.reply)}</p>`:link(ownerPath+'/fulfill','Ответить как продавец','text-link')}</div>`;
@@ -248,13 +277,15 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
       select('result','Результат тестовой оплаты',{paid:'Подтверждена',failed:'Не прошла'},'paid'),'Завершить тестовую оплату');
     if(current.payment==='unpaid'||current.payment==='failed')return form('test-pay',status+sellerLink,'Начать тестовую оплату');
     return `<div class="training-success">${status}<p>Выполнение · ${deliveryStages(current)[deliveryStep(current)]}</p>
-      ${draft.messages.map(message=>`<p>Уведомление · ${esc(message.text)}</p>`).join('')}${sellerLink}</div>`;
+      ${draft.messages.map(message=>`<p>Уведомление · ${esc(message.text)}</p>`).join('')}${coach(sellerLink,'Оплата прошла. Откройте заказ со стороны продавца, чтобы обновить доставку.')}</div>`;
   }
 
   function page(role,step){
     const owner=role!=='buyer';
     const path='new-community/'+(owner?'owner':'buyer');
     const tab=step==='checkout'?'goods':['posts','goods'].includes(step)?step:'home';
+    const groups=chapters();
+    const selected=owner?currentChapter(groups,step):groups.at(-1);
     return `<section class="card community-hero">
       <div class="community-cover draft-cover"></div>
       <div class="community-identity">
@@ -268,11 +299,12 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
         ).join('')}
       </nav>
     </section>
+    ${journey(groups,selected)}
     <div class="community-columns community-home">
       <div class="community-stack">
-        ${owner&&tab==='home'?guide(step):''}
-        ${tab==='goods'||tab==='home'&&draft.product?goods(owner,step==='checkout'):''}
-        ${tab!=='goods'?posts(owner):''}
+        ${owner&&tab==='home'?guide(step,groups,selected):''}
+        ${tab==='goods'||tab==='home'&&draft.product?goods(owner,step==='checkout',tab==='goods'):''}
+        ${tab!=='goods'?posts(owner,tab==='posts'):''}
       </div>
       <aside class="community-stack"><section class="card">
         <div class="card-head"><h2>О сообществе</h2></div>
@@ -369,7 +401,8 @@ export function onboardingUI(state,{esc,money,link,save,go,btn,dialog,closeDialo
         const match=marketMatch({...draft.product,modes:[draft.payment.mode]},draft.query,settings());
         draft.found=draft.found||match;
         draft.searchResult=match?'match':'miss';
-        save();
+        if(match)go(ownerPath);
+        save(match?'Карточка найдена в учебном Маркете':'');
         return;
       case 'preview': {
         if(!ready()||chat()||order()||!value('buyer'))return;

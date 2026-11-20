@@ -2,16 +2,19 @@ import {initEcosystem,ecosystemUI,illustration,friends} from './ecosystem.js';
 import {initCommunity,communityUI} from './community.js';
 import {shopUI} from './shop-ui.js';
 import {marketUI,ozonSample} from './market-ui.js';
-import {availableDelivery,deliveryMethods,marketMatch,quote,suggestCategory,purchaseModes,purchaseLabels,ozonUrl,cartModes} from './commerce.js';
+import {availableDelivery,deliveryMethods,ozonPoints,arrivalDate,marketMatch,quote,suggestCategory,purchaseModes,purchaseLabels,ozonUrl,cartModes} from './commerce.js';
 import {channels, initialState, metrics, ready, placeOrder, placeOrders} from './store.js';
 import {changeDelivery,deliveryStages,deliveryStep,deliveryLabel} from './delivery.js';
 import {onboardingUI} from './onboarding.js';
+import {lessonSpotlight} from './lesson-spotlight.js';
 import {messengerUI} from './messenger.js';
 import {productInfo} from './product-info.js';
+import {initCase,caseFeatures} from './case-features.js';
 import {icon} from './icons.js';
 
 const app = document.querySelector('#app');
 const modal = document.querySelector('#modal');
+const refreshLessonSpotlight = lessonSpotlight(app);
 const toast = document.querySelector('#toast');
 const key = 'vk-case-champ-v1';
 const publications = {
@@ -27,7 +30,12 @@ if(!state.settings.payment&&!state.settings.delivery&&!Object.hasOwn(state.setti
 }
 initCommunity(state);
 initEcosystem(state);
+initCase(state);
 state.saved ??= [];
+if(!state.settings.ozonDemoInitialized){
+  state.settings.deliveryMethods=[...new Set([...(state.settings.deliveryMethods??['courier']),'ozon'])];
+  state.settings.ozonDemoInitialized=true;
+}
 if(!state.products.some(p=>p.kind==='rope-toy')){
   state.products.push({id:Math.max(0,...state.products.map(p=>p.id))+1,name:'Игрушка «Канат»',price:490,stock:0,kind:'rope-toy',sellerId:'bishka',color:'#ecedf2',category:'Игрушки для собак'});
 }
@@ -40,15 +48,15 @@ function startShopChat(){
 let channel = 0;
 let orderFilter = 'all';
 let marketQuery = '';
-const marketPages = new Set(['market','market-shop','market-saved','market-ozon','market-item','market-reviews','cart','my-orders']);
+const marketPages = new Set(['market','market-shop','market-saved','market-ozon','market-item','market-reviews','for-you','authors','referrals','cart','my-orders']);
 let toastTimer;
 const businessSections = [
-  {label:'Обзор',pages:{business:'Обзор'}},
-  {label:'Общение',pages:{clients:'Переписки с клиентами',questions:'Вопросы покупателей','bot-settings':'Помощник магазина'}},
+  {label:'Обзор',pages:{business:'Обзор','vk-start':'VK Start'}},
+  {label:'Общение',pages:{clients:'Переписки с клиентами',questions:'Вопросы покупателей','bot-settings':'Помощник магазина',operator:'Поддержка'}},
   {label:'Заказы',pages:{orders:'Заказы',payments:'Платежи'}},
-  {label:'Ассортимент',pages:{products:'Товары',collections:'Подборки',services:'Услуги',promos:'Промокоды'}},
-  {label:'Продвижение',pages:{content:'Контент и каналы',campaigns:'Реклама'}},
-  {label:'Настройки',pages:{settings:'Оплата и доставка',manage:'Сообщество',integrations:'Интеграции',help:'Справка'}}
+  {label:'Ассортимент',pages:{products:'Товары','variant-stock':'Остатки по размерам',collections:'Подборки',services:'Услуги',promos:'Промокоды'}},
+  {label:'Продвижение',pages:{content:'Контент и каналы',campaigns:'Реклама','ad-helper':'Помощник по продвижению'}},
+  {label:'Настройки',pages:{settings:'Оплата и доставка',manage:'Сообщество',integrations:'Интеграции',verification:'Проверка продавца',help:'Справка'}}
 ];
 const businessTitles=Object.assign({},...businessSections.map(section=>section.pages));
 const statusText = {unpaid:'Не оплачено',processing:'Обрабатывается',paid:'Оплачено',failed:'Не прошла',refunded:'Возвращена'};
@@ -97,7 +105,8 @@ const community=communityUI(state,{esc,link,btn,money,badge,dialog,save,go,produ
 const messenger=messengerUI(state,{esc,money,save,go});
 const shop=shopUI(state,{esc,link,btn,money,table,ozonSample});
 const marketView=marketUI(state,{esc,link,btn,money,productImage,shop});
-const ecosystem=ecosystemUI(state,{esc,btn,link,money,dialog,save,go,productImage,findProduct:shop.findProduct,ozonSample,card:marketView.card,cartAction:shop.cartAction,toast:saveMessage});
+const features=caseFeatures(state,{esc,link,btn,money,table,save,go,card:marketView.card,record,toast:saveMessage});
+const ecosystem=ecosystemUI(state,{esc,btn,link,money,dialog,save,go,productImage,findProduct:shop.findProduct,ozonSample,card:marketView.card,cartAction:shop.cartAction,toast:saveMessage,variantButtons:features.variantButtons});
 let orderSearch='';
 let orderStatus='all';
 const orderSource=o=>Array.from(new Set((o.items?.map(item=>item.source)||[o.source]).filter(value=>channels.includes(value)))).join(' · ')||channels[4];
@@ -143,7 +152,7 @@ function overview(){
     ['orders','Заказы','Статусы, доставка и оплата','box'],
     ['products','Товары','Карточки, цены и остатки','bag']
   ];
-  return '<section class="business-shortcuts" aria-label="Быстрый доступ">'+shortcuts.map(([path,label,hint,glyph])=>link(
+  return '<section class="case-hero"><p class="case-kicker">VK Start</p><h1>Первый заказ начинается здесь</h1><p>Настройте витрину, проведите покупку из клипа и проверьте результат в кабинете.</p><div class="actions">'+link('vk-start','Пройти сценарий','btn white')+'</div></section><section class="business-shortcuts" aria-label="Быстрый доступ">'+shortcuts.map(([path,label,hint,glyph])=>link(
     path,'<span class="business-shortcut-icon">'+icon(glyph,22)+'</span><span><strong>'+label+'</strong><small>'+hint+'</small></span>'+icon('arrow',16),'card business-shortcut'
   )).join('')+'</section><div class="metrics">'+stats.map(([label,value,note,glyph])=>'<section class="card metric"><div class="metric-label">'+label+'<span>'+icon(glyph,17)+'</span></div><strong>'+value+'</strong><small>'+note+'</small></section>').join('')+'</div>'+
     '<div class="overview-grid"><section class="card"><div class="card-head"><h2>Заказы и оплаты</h2><span class="muted">7 дней до последнего заказа</span></div>'+chart()+'</section>'+readiness()+'</div>'+
@@ -255,6 +264,10 @@ function orderDetail(id,buyer){
     if(o.payment==='processing') actions+=btn('resolve-pay','Завершить тестовую оплату','primary',o.id);
     actions+=btn('request-cancel','Запросить отмену','secondary',o.id);
   }
+  if(!buyer&&o.demo&&o.status==='new'&&o.payment==='paid')actions+=btn('delivery-delay',o.delayed?'Возобновить доставку':'Сообщить о задержке','secondary',o.id);
+  if(o.delayed&&o.status==='new')actions+=badge('Доставка задерживается','orange');
+  if(buyer&&o.demo&&o.status==='received'&&o.payment==='paid')actions+=o.returnRequested?badge('Возврат запрошен','orange'):btn('request-return','Запросить возврат','secondary',o.id);
+  if(!buyer&&o.returnRequested&&o.payment==='paid')actions+=btn('approve-return','Подтвердить возврат','secondary',o.id);
   if(!buyer && o.status==='cancelRequested') actions+=btn('approve-cancel','Подтвердить отмену','secondary',o.id);
   if(!buyer && !o.demo && o.status==='new' && o.payment==='paid' && (!o.gift||o.gift.accepted)) actions+=btn('received','Отметить полученным','primary',o.id);
   if(!buyer && o.method==='external' && o.status!=='cancelled' && o.payment!=='paid') actions+=btn('external-pay','Подтвердить оплату вне VK','secondary',o.id);
@@ -262,7 +275,7 @@ function orderDetail(id,buyer){
     actions+=link('gift/'+o.id,o.gift.accepted?'Посмотреть подарок':'Открыть подарок как получатель','btn primary');
   }
   return '<section class="card"><div class="card-head"><h2>Заказ № '+o.id+'</h2>'+badge(orderStatusLabel(o))+'</div><dl class="kv"><div><dt>Товар</dt><dd>'+esc(o.product)+'</dd></div><div><dt>Покупатель</dt><dd>'+esc(o.name)+'</dd></div><div><dt>Источник</dt><dd>'+esc(orderSource(o))+'</dd></div>'+
-    (o.city?'<div><dt>Доставка</dt><dd>'+esc(o.pickupAddress||o.city)+' · '+(deliveryMethods[o.deliveryMethod]||'Доставка')+' · '+o.days+' дн. · '+money(o.delivery)+'</dd></div>':'')+
+    (o.city?'<div><dt>Доставка</dt><dd>'+esc(o.pickupAddress||o.address||o.city)+' · '+(deliveryMethods[o.deliveryMethod]||'Доставка')+' · '+(o.expectedAt||o.days+' дн.')+' · '+money(o.delivery)+'</dd></div>':'')+
     (o.gift?'<div><dt>Подарок для '+esc(o.gift.recipient)+'</dt><dd>'+(o.gift.accepted?'Принят · '+esc(o.gift.variant)+' · '+esc(o.gift.address):'Получатель ещё не указал адрес')+'</dd></div>':'')+
     (o.discount?'<div><dt>Промокод '+esc(o.promo)+'</dt><dd>−'+money(o.discount)+'</dd></div>':'')+
     '<div><dt>Сумма заказа</dt><dd>'+money(o.total)+'</dd></div><div><dt>Оплата</dt><dd>'+paymentBadge(o)+'</dd></div></dl>'+
@@ -282,11 +295,17 @@ function giftView(id){
     (gift.accepted?'<p class="space-top">'+esc(gift.variant)+' · '+esc(gift.address)+'</p>':!gift.unwrapped?btn('unwrap-gift','Распаковать подарок','primary full',order.id):
       '<p class="muted">Доставка уже оплачена: '+money(order.delivery)+'. Выберите доступный способ без доплаты.</p><form class="space-top" data-form="accept-gift" data-id="'+order.id+'"><label>Вариант товара<select name="variant"><option>Стандартный</option></select></label><label>Способ доставки<select name="method">'+(order.deliveryChoices?.length?order.deliveryChoices:[order.deliveryMethod]).map(code=>'<option value="'+code+'">'+deliveryMethods[code]+'</option>').join('')+'</select></label><label>Адрес получателя<input name="address" required maxlength="160" placeholder="Для демо укажите вымышленный адрес"></label><button class="btn primary">Принять подарок</button></form>')+'</section>';
 }
+function rewardReferral(order){
+  if(order.status!=='received'||order.promo!=='DRUG10'||state.case.referralReward)return;
+  state.case.referralReward=order.id;
+  state.wallet.balance+=300;
+  state.wallet.operations.push({title:'Бонус за приглашение друга',amount:300,at:Date.now()});
+}
 function buyerOrders(){
   return '<section class="card"><div class="card-head"><h2>Мои заказы</h2></div>'+table(['Заказ','Товар','Сумма','Оплата','Выполнение'],state.orders.filter(o=>o.demo).map(o=>[link('purchase/'+o.id,'№ '+o.id,'text-link'),esc(o.product),money(o.total),paymentBadge(o),o.status==='new'?deliveryStages(o)[deliveryStep(o)]:orderText[o.status]]),'Оформите первый заказ на витрине.')+'</section>';
 }
 const nav = [['home','Моя страница'],['news','Лента','feed'],['chat','Мессенджер','inbox'],['people','Друзья'],['people','Сообщества','communities'],['music','Музыка'],['play','Видео'],['play','Клипы','clips'],['game','Игры'],['bag','Маркет','market'],['card','VK Pay','wallet'],['chat','Поддержка VK','support'],['bag','Мой бизнес','business']];
-const routes={...community.views,product:ecosystem.product,seller:ecosystem.sellerPage,wallet:ecosystem.wallet,notifications:ecosystem.notices,support:ecosystem.support,questions:ecosystem.questions,'bot-settings':ecosystem.bots,communities:onboarding.list,'new-community':onboarding.page,business:overview,inbox:messenger.inbox,clients:messenger.clients,content,products,orders,payments,settings,market:category=>marketView.home(category,marketQuery),'market-shop':category=>marketView.home(category,marketQuery,'shop'),'market-saved':()=>marketView.home('',marketQuery,'saved'),'market-ozon':()=>marketView.home('',marketQuery),'market-item':marketView.detail,
+const routes={...community.views,...features.routes,product:ecosystem.product,seller:ecosystem.sellerPage,wallet:ecosystem.wallet,notifications:ecosystem.notices,support:ecosystem.support,questions:ecosystem.questions,'bot-settings':ecosystem.bots,communities:onboarding.list,'new-community':onboarding.page,business:overview,inbox:messenger.inbox,clients:messenger.clients,content,products,orders,payments,settings,market:category=>marketView.home(category,marketQuery),'market-shop':category=>marketView.home(category,marketQuery,'shop'),'market-saved':()=>marketView.home('',marketQuery,'saved'),'market-ozon':()=>marketView.home('',marketQuery),'market-item':marketView.detail,
   integrations:ecosystem.integrations,'market-reviews':marketView.reviews,gift:giftView,cart:shop.cart,'my-orders':buyerOrders,order:id=>orderDetail(Number(id),false),purchase:id=>orderDetail(Number(id),true)};
 function businessHeader(page){
   const current=page==='order'?'orders':page;
@@ -342,6 +361,7 @@ function render(){
       return '<a href="#'+target+'" aria-label="'+label+'" class="'+className+'" '+(target===activeNav?'aria-current="page"':'')+'>'+icon(glyph,19)+'<span>'+label+'</span></a>';
     }).join('')+'</nav><div class="nav-foot">Демо для VK Case Champ</div></aside>'+
     '<main>'+header+body+'</main></div>'+link('support','Помощь VK','btn secondary support-entry');
+  refreshLessonSpotlight();
   const player=app.querySelector('.clip-player');
   if(player){
     player.dataset.route=location.hash;
@@ -401,7 +421,7 @@ function editProduct(id){
   dialog(p?'Изменить товар':'Новый товар','<form data-form="product" data-id="'+(p?.id||'')+'"><label>Название<input name="name" required maxlength="70" value="'+esc(p?.name||'')+'"></label>'+
     '<label>Описание<textarea name="description" rows="2" maxlength="500">'+esc(p?.description||'')+'</textarea></label>'+
     '<div class="actions">'+btn('smart-fill','✦ Заполнить по описанию','secondary')+'</div><label>Фото товара<input type="file" name="photo" accept="image/*"></label>'+btn('smart-cover','✦ Сделать обложку','secondary')+'<div class="cover-preview" data-cover-preview></div><label>Категория<input name="category" required maxlength="50" value="'+esc(p?.category||'')+'"></label><small data-category-hint aria-live="polite"></small>'+
-    '<div class="field-grid"><label>Цена, ₽<input name="price" type="number" min="1" max="1000000" required value="'+(p?.price??'')+'"></label><label>Остаток, шт.<input name="stock" type="number" min="0" max="100000" required value="'+(p?.stock??'')+'"></label></div>'+
+    '<div class="field-grid"><label>Цена, ₽<input name="price" type="number" min="1" max="1000000" required value="'+(p?.price??'')+'"></label><label>Остаток, шт.<input name="stock" type="number" min="0" max="100000" required value="'+(p?.stock??'')+'" '+(p?.variants?'readonly':'')+'></label></div>'+(p?.variants?link('variant-stock','Управлять остатками по размерам','text-link'):'')+
     '<fieldset class="purchase-options"><legend>Способы покупки</legend>'+Object.entries(purchaseLabels).map(([mode,label])=>
       '<label class="check-row"><input type="checkbox" name="modes" value="'+mode+'" '+(purchaseModes(p||{}).includes(mode)?'checked':'')+'> '+label+'</label>').join('')+'</fieldset>'+
     '<label>Ссылка на товар Ozon<input name="externalUrl" type="url" maxlength="500" value="'+esc(p?.externalUrl||'')+'"></label><button class="btn primary">Сохранить товар</button></form>');
@@ -413,7 +433,8 @@ function checkout(items,identifier,preview=false,gift=false){
     return;
   }
   dialog(preview?'Проверка оформления':gift?'Оформление подарка':'Оформление заказа',shop.checkoutForm(items,identifier,preview,gift));
-  shop.refreshQuote(modal.querySelector('form'));
+  const form=modal.querySelector('form');
+  if(form)shop.refreshQuote(form);
 }
 function itemFor(p,source,publication=0,trial=0){return {product:p,quantity:1,source:channels[source]||'Сообщество',publication,trial};}
 function readinessDialog(p){
@@ -428,6 +449,7 @@ function readinessDialog(p){
 document.addEventListener('click',event=>{
   const b=event.target.closest('[data-action]');
   if(!b)return;
+  if(features.action(b.dataset.action,b.dataset.id||'')){event.preventDefault();return;}
   if(ecosystem.action(b.dataset.action,b.dataset.id||'',b)){event.preventDefault();return;}
   if(b.dataset.action.startsWith('community-')){community.action(b.dataset.action.slice(10),b.dataset.id);return;}
   const [rawId,rawSource,rawPublication,rawTrial]=b.dataset.id?.split(':')||[];
@@ -442,8 +464,8 @@ document.addEventListener('click',event=>{
     case 'close': modal.close(); break;
     case 'training-reset': onboarding.resetPrompt(); break;
     case 'training-product': onboarding.productDialog(b.dataset.id); break;
-    case 'track-product':if(p)record('open',channelName,publication,trial);break;
-    case 'open-product': if(p){record('open',channelName,publication,trial);window.open('#product/'+p.id+'/'+[source,publication,trial].join(':'),'_blank','noopener');} break;
+    case 'track-product':if(p){state.case.recent=[p.id,...state.case.recent.filter(id=>id!==p.id)].slice(0,24);record('open',channelName,publication,trial);}break;
+    case 'open-product': if(p){record('open',channelName,publication,trial);state.case.recent=[p.id,...state.case.recent.filter(id=>id!==p.id)].slice(0,24);localStorage.setItem(key,JSON.stringify(state));go('product/'+p.id+'/'+[source,publication,trial].join(':'));} break;
     case 'market-reset':
       marketQuery='';
       marketView.setFilters();
@@ -519,11 +541,33 @@ document.addEventListener('click',event=>{
     case 'payment-paid':
     case 'payment-failed':
       if(o?.status==='new'&&o.payment==='processing'){
-        o.payment=b.dataset.action==='payment-paid'?'paid':'failed';
+        o.payment=b.dataset.action==='payment-paid'&&(o.payWith!=='vk'||state.wallet.balance>=o.total)?'paid':'failed';
         if(o.payment==='paid'&&o.payWith==='vk')state.wallet.balance-=o.total;
         if(o.gift&&o.payment==='paid')state.notifications.unshift({title:'Подарок отправлен другу',text:o.gift.recipient+' получит подарок в демочате',route:'inbox/gifts'});
         if(o.gift&&o.payment==='paid')state.messages.push({thread:o.id,side:'seller',text:'Подарок оплачен. Получатель может принять его и указать адрес.',gift:o.id,at:Date.now()});
         modal.close();save(statusText[o.payment]);
+      }
+      break;
+    case 'delivery-delay':
+      if(o?.demo&&o.status==='new'&&o.payment==='paid'){
+        o.delayed=!o.delayed;
+        const text=o.delayed?'Доставка задерживается. Уточните новый срок в переписке.':'Доставка возобновлена.';
+        state.notifications.unshift({title:'Заказ № '+o.id,text,route:'purchase/'+o.id});
+        state.messages.push({thread:o.id,side:'delivery',at:Date.now(),text});
+        save(text);
+      }
+      break;
+    case 'request-return':
+      if(o?.demo&&o.status==='received'&&o.payment==='paid'&&!o.returnRequested){
+        o.returnRequested=true;save('Запрос на возврат отправлен');go('support/order-'+o.id);
+      }
+      break;
+    case 'approve-return':
+      if(o?.demo&&o.returnRequested&&o.payment==='paid'){
+        o.payment='refunded';
+        if(o.payWith==='vk')state.wallet.balance+=o.total;
+        state.notifications.unshift({title:'Возврат подтверждён',text:'Заказ № '+o.id+' · '+money(o.total),route:'purchase/'+o.id});
+        save('Тестовый возврат проведён');
       }
       break;
     case 'request-cancel':
@@ -533,7 +577,10 @@ document.addEventListener('click',event=>{
       if(o?.status==='cancelRequested'){
         if(o.demo)for(const item of o.items||[{productId:o.productId,quantity:1}]){
           const product=state.products.find(product=>product.id===item.productId);
-          if(product)product.stock+=item.quantity;
+          if(product){
+            product.stock+=item.quantity;
+            if(item.variant&&product.variants)product.variants[item.variant]+=item.quantity;
+          }
         }
         o.status='cancelled';
         if(o.payment==='processing')o.payment='unpaid';
@@ -543,10 +590,10 @@ document.addEventListener('click',event=>{
       break;
     case 'advance-delivery':
     case 'rewind-delivery':
-      if(changeDelivery(state,o,b.dataset.action==='rewind-delivery'?-1:1))save('Статус доставки обновлён');
+      if(changeDelivery(state,o,b.dataset.action==='rewind-delivery'?-1:1)){rewardReferral(o);save('Статус доставки обновлён');}
       break;
     case 'received':
-      if(o?.status==='new'&&o.payment==='paid'){o.status='received';save('Заказ отмечен полученным');}
+      if(o?.status==='new'&&o.payment==='paid'){o.status='received';rewardReferral(o);save('Заказ отмечен полученным');}
       break;
     case 'external-pay':
       if(o?.method==='external'&&o.status!=='cancelled'){o.payment='paid';save('Поступление подтверждено');}
@@ -555,6 +602,7 @@ document.addEventListener('click',event=>{
 });
 document.addEventListener('submit',async event=>{
   const form=event.target;
+  if(form.dataset.caseForm){event.preventDefault();features.submit(form);return;}
   if(!form.dataset.form)return;
   event.preventDefault();
   if(await ecosystem.submit(form))return;
@@ -579,7 +627,7 @@ document.addEventListener('submit',async event=>{
     case 'settings':
       state.settings={...state.settings,payment:f.has('payment'),delivery:f.has('delivery'),price:+value('price'),days:+value('days'),
         minimum:+value('minimum'),packingDays:+value('packingDays'),freeDelivery:f.has('freeDelivery'),policy:value('policy'),
-        deliveryMethods:Object.keys(deliveryMethods).filter(code=>f.has('method-'+code))};
+        ozonDemoInitialized:true,deliveryMethods:Object.keys(deliveryMethods).filter(code=>f.has('method-'+code))};
       save('Настройки сохранены');
       break;
     case 'product': {
@@ -600,7 +648,7 @@ document.addEventListener('submit',async event=>{
       const p=state.products.find(p=>p.id===id);
       if(form.dataset.cover)changes.cover=form.dataset.cover;
       else if(f.get('photo')?.size){const file=f.get('photo');if(!file.type.startsWith('image/')||file.size>1500000){saveMessage('Для локального демо выберите фото до 1,5 МБ');return;}changes.cover=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(file);});}
-      if(p){const oldStock=p.stock;Object.assign(p,changes);ecosystem.restocked(p,oldStock);}
+      if(p){const oldStock=p.stock;if(p.variants)changes.stock=p.stock;Object.assign(p,changes);ecosystem.restocked(p,oldStock);}
       else state.products.push({id:Math.max(0,...state.products.map(p=>p.id))+1,kind:'new',sellerId:'bishka',color:'#e9eff8',...changes});
       modal.close();
       save('Карточка сохранена');
@@ -619,6 +667,7 @@ document.addEventListener('submit',async event=>{
       break;
     case 'search':
       marketQuery=value('query');
+      if(marketQuery){state.case.queries=[marketQuery.slice(0,100),...state.case.queries.filter(q=>q!==marketQuery)].slice(0,12);localStorage.setItem(key,JSON.stringify(state));}
       if(/^#(?:market|market-shop|market-saved)(?:\/|$)/.test(location.hash)){render();recordTrialImpressions();}
       else go('market');
       break;
@@ -656,6 +705,11 @@ document.addEventListener('submit',async event=>{
       const items=fromCart?shop.vkCartItems():p?[itemFor(p,source,publication,trial)]:[];
       if(!items.length||!value('name')||(gift?!value('recipient')&&!value('profile'):!value('city'))){form.querySelector('input').focus();return;}
       const promo=shop.refreshQuote(form);
+      for(const item of items)item.variant=value('variant-'+item.product.id);
+      if(!gift){
+        const phone=form.elements.phone;
+        phone.setCustomValidity(/^[78][0-9]{10}$/.test(value('phone').replace(/[^0-9]/g,''))?'':'Укажите российский номер из 11 цифр');
+      }
       if(!form.reportValidity())return;
       if(form.dataset.preview==='true'){
         modal.close();save('Проверка пройдена. Заказ не создан.');return;
@@ -663,7 +717,16 @@ document.addEventListener('submit',async event=>{
       try{
         if(gift&&!friends.some(x=>x.id===value('recipient'))&&!/^https:\/\/(?:www\.)?vk\.(?:com|ru)\/[a-zA-Z0-9_.]+\/?$/.test(value('profile')))throw Error('Выберите друга или укажите ссылку VK');
         const created=placeOrders(state,items,value('name'),gift?'':value('city'),value('method'),promo);
+        for(const order of created){
+          order.expectedAt=arrivalDate(order.days);
+          if(!gift){
+            order.phone=value('phone');
+            order.address=value('address');
+            if(value('method')==='ozon')order.pickupAddress=ozonPoints[Number(value('point'))];
+          }
+        }
         const order=created[0];
+        if(order.promo==='DRUG10')state.case.invited=false;
         if(gift){const friend=friends.find(x=>x.id===value('recipient'));const profile=value('profile');if(!friend&&!/^https:\/\/(?:www\.)?vk\.(?:com|ru)\/[a-zA-Z0-9_.]+\/?$/.test(profile))throw Error('Выберите друга или укажите ссылку VK');order.gift={recipient:friend?.name||profile,recipientId:friend?.id||profile,accepted:false};}
         if(fromCart)state.cart=state.cart.filter(row=>row.mode==='external');
         modal.close();save('Заказ оформлен');go(created.length>1?'my-orders':'purchase/'+order.id);
@@ -702,6 +765,7 @@ document.addEventListener('input',event=>{
 });
 
 document.addEventListener('input',event=>{
+  if(event.target.name==='phone')event.target.setCustomValidity('');
   const form=event.target.closest('form[data-form="checkout"]');
   if(form)shop.refreshQuote(form);
 });
@@ -757,7 +821,7 @@ function recordTrialImpressions(){
     if(product?.stock&&marketMatch(product,marketQuery.trim(),state.settings))record('impression','Поиск Маркета',0,productId);
   }
 }
-window.addEventListener('hashchange',()=>{if(modal.open)modal.close();startShopChat();render();recordTrialImpressions();recordPublicationViews();window.scrollTo(0,0);});
+window.addEventListener('hashchange',()=>{if(modal.open)modal.close();startShopChat();window.scrollTo(0,0);render();recordTrialImpressions();recordPublicationViews();});
 window.addEventListener('storage',event=>{
   if(event.key!==key||!event.newValue)return;
   const next=JSON.parse(event.newValue);
@@ -769,6 +833,7 @@ window.addEventListener('storage',event=>{
     for(const field of Object.keys(model))if(!Object.hasOwn(updated,field))delete model[field];
     Object.assign(model,updated);
   }
+  if(rest.case){Object.assign(state.case,rest.case);delete rest.case;}
   Object.assign(state,rest);
   if(changed&&!document.activeElement?.closest('#app form'))render();
 });

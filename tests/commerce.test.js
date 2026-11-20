@@ -51,3 +51,30 @@ test('synced shipping price is preserved in checkout instead of silently using s
  const [o]=placeOrders(s,[item(s,1)],'Тест','Москва','courier');
  assert.equal(o.delivery,350);assert.equal(o.total,2340);assert.equal(o.days,6);
 });
+
+test('Ozon pickup reserves the chosen size and includes production time',()=>{
+ const s=fresh();
+ s.settings.deliveryMethods.push('ozon');
+ s.settings.packingDays=2;
+ s.products[0].deliveryDays=4;
+ s.products[0].variants={M:12,L:0};
+ const [order]=placeOrders(s,[{...item(s,1),variant:'M'}],'Тест','Москва','ozon');
+ assert.equal(order.deliveryMethod,'ozon');
+ assert.equal(order.days,6);
+ assert.equal(order.items[0].variant,'M');
+ assert.equal(s.products[0].variants.M,11);
+ assert.equal(s.products[0].stock,11);
+ const before=structuredClone(s);
+ assert.throws(()=>placeOrders(s,[{...item(s,1),variant:'L'}],'Тест','Москва','ozon'),/размер закончился/);
+ assert.deepEqual(s,before);
+});
+
+test('referral discounts a single seller order in a mixed basket',()=>{
+ const s=fresh();
+ const promo={code:'DRUG10',percent:10,active:true};
+ const [first,second]=placeOrders(s,[item(s,1),item(s,101)],'Тест','Москва','courier',promo);
+ assert.equal(first.discount,199);
+ assert.equal(first.promo,promo.code);
+ assert.equal(second.discount,0);
+ assert.equal(second.promo,undefined);
+});

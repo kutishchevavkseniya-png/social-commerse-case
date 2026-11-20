@@ -25,14 +25,14 @@ const categories = [
 
 export function marketUI(state,{esc,link,btn,money,productImage,shop}){
   const catalog = ()=>[...state.products,ozonSample];
-  const marketId = p=>[p.id,3,0,state.trials.some(row=>row.productId===p.id)?p.id:0].join(':');
+  const marketId = p=>[p.id,p.sourceIndex??3,0,state.trials.some(row=>row.productId===p.id)?p.id:0].join(':');
   let filters={min:'',max:'',available:false,sort:'',days:'',seller:''};
   function setFilters(values={}){filters={min:'',max:'',available:false,sort:'',days:'',seller:'',...values};}
   function favorite(p){
     const saved=state.saved.includes(p.id);
     return `<button type="button" class="heart ${saved?'selected-heart':''}" data-action="favorite" data-id="${p.id}" aria-pressed="${saved}" aria-label="${saved?'Убрать из избранного':'В избранное'}">${icon('heart',23)}</button>`;
   }
-  const tabs = [['market','Все товары'],['my-orders','Заказы'],['market-saved','Избранное'],['market-reviews','Отзывы']];
+  const tabs = [['market','Все товары'],['for-you','Для вас'],['authors','Подборки авторов'],['referrals','Пригласить друга'],['my-orders','Заказы'],['market-saved','Избранное'],['market-reviews','Отзывы']];
   function toolbar(page,arg,query){
     const count=state.cart.reduce((sum,row)=>sum+row.quantity,0);
     const selected=['market-ozon','market-item','market-shop'].includes(page)?'market':page==='purchase'?'my-orders':page;
@@ -58,7 +58,7 @@ export function marketUI(state,{esc,link,btn,money,productImage,shop}){
   function card(p){
     const id=marketId(p);
     const modes=purchaseModes(p);
-    const open=children=>`<a class="market-card-open" href="#product/${p.id}/${id.split(':').slice(1).join(':')}" data-action="track-product" data-id="${id}" target="_blank" rel="noopener noreferrer">${children}</a>`;
+    const open=children=>`<a class="market-card-open" href="#product/${p.id}/${id.split(':').slice(1).join(':')}" data-action="track-product" data-id="${id}">${children}</a>`;
     return `<article class="market-card">
       <div class="market-card-picture">
         ${favorite(p)}${open(productImage(p)+'<span class="sr-only">'+esc(p.name)+'</span>')}
@@ -71,7 +71,7 @@ export function marketUI(state,{esc,link,btn,money,productImage,shop}){
       <div class="market-card-meta">${p.rating?'★ '+p.rating+' · '+p.reviewCount.toLocaleString('ru-RU')+' отзывов':esc(p.kind==='beiber'?'Ozon':(sellers[p.sellerId||'bishka']?.name||state.community.name))}</div>
       <div class="market-buy-actions">
         ${modes.includes('message')&&state.community.messages&&p.stock?btn('product-message','Написать продавцу','secondary full',id):''}
-        ${shop.cartAction(p,id,true)}${p.stock?'<small class="delivery-date">'+(p.kind==='beiber'?'Срок уточнит Ozon':'Ожидается '+deliveryDate(p,state))+'</small>':btn('stock-subscribe',state.stockSubscriptions.includes(p.id)?'Жду поступления':'Уведомить','secondary full',p.id)}
+        ${p.stock&&modes.includes('vk')?btn('checkout','Купить сейчас','primary full',id):''}${shop.cartAction(p,id,true)}${p.stock?'<small class="delivery-date">'+(p.kind==='beiber'?'Срок уточнит Ozon':'Ожидается '+deliveryDate(p,state))+'</small>':btn('stock-subscribe',state.stockSubscriptions.includes(p.id)?'Жду поступления':'Уведомить','secondary full',p.id)}
 
       </div>
     </article>`;
@@ -88,6 +88,7 @@ export function marketUI(state,{esc,link,btn,money,productImage,shop}){
       (scope!=='saved'||state.saved.includes(p.id))&&(!filter||filter[4](p))&&marketMatch(p,query,state.settings)&&
       (!filters.seller||p.sellerId===filters.seller)&&(!filters.days||(p.deliveryDays??state.settings.days)<=Number(filters.days))&&(!filters.available||p.stock>0)&&(filters.min===''||p.price>=Number(filters.min))&&
       (filters.max===''||p.price<=Number(filters.max)));
+    matches.sort((a,b)=>Number(state.trials.some(row=>row.productId===b.id))-Number(state.trials.some(row=>row.productId===a.id)));
     if(filters.sort)matches.sort((a,b)=>filters.sort==='asc'?a.price-b.price:b.price-a.price);
     const title=scope==='shop'?'Товары «'+esc(state.community.name)+'»':scope==='saved'?'Избранное':query?'Результаты поиска':filter?.[1]||'Все товары';
     return `<div class="market-catalog-layout"><aside class="card filter-sidebar"><h2>Фильтры</h2><form class="market-filters" data-form="market-filters">
