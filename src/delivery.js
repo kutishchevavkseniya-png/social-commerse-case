@@ -1,4 +1,4 @@
-import {deliveryMethods} from './commerce.js';
+import {deliveryMethods} from './commerce.js?v=20261120-3';
 
 export function deliveryStages(order){
   if(order.deliveryMethod==='pickup')return ['Заказ оформлен','Готовится к выдаче','Готов к выдаче','Получен'];

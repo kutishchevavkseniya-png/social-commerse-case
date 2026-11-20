@@ -1,5 +1,5 @@
-import {friends,sellers} from './ecosystem.js';
-import {deliveryLabel,orderConfirmation} from './delivery.js';
+import {friends,sellers} from './ecosystem.js?v=20261120-3';
+import {deliveryLabel,orderConfirmation} from './delivery.js?v=20261120-3';
 
 const personalContacts = [
   {id:'alina', name:'Алина', color:'blue', text:'Привет! Во сколько встречаемся в субботу?'},

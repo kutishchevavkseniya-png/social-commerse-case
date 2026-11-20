@@ -1,5 +1,5 @@
-import {deliveryDate,sellers} from './ecosystem.js';
-import {marketMatch,purchaseModes,ozonUrl} from './commerce.js';
+import {deliveryDate,sellers} from './ecosystem.js?v=20261120-3';
+import {marketMatch,purchaseModes,ozonUrl} from './commerce.js?v=20261120-3';
 import {icon} from './icons.js';
 
 const beiber = {

@@ -1,4 +1,4 @@
-import {purchaseModes} from './commerce.js';
+import {purchaseModes} from './commerce.js?v=20261120-3';
 import {icon} from './icons.js';
 
 export function initCommunity(state){

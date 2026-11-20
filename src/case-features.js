@@ -1,4 +1,4 @@
-import {marketMatch,purchaseModes} from './commerce.js';
+import {marketMatch,purchaseModes} from './commerce.js?v=20261120-3';
 
 export function initCase(state){
   state.case ??= {recent:[],queries:[],waiting:[],bonus:0};

@@ -1,7 +1,7 @@
 import {icon} from './icons.js';
-import {deliveryMethods, marketMatch, quote} from './commerce.js';
-import {placeOrder, metrics} from './store.js';
-import {changeDelivery,deliveryStages,deliveryStep} from './delivery.js';
+import {deliveryMethods, marketMatch, quote} from './commerce.js?v=20261120-3';
+import {placeOrder, metrics} from './store.js?v=20261120-3';
+import {changeDelivery,deliveryStages,deliveryStep} from './delivery.js?v=20261120-3';
 
 const ownerPath='new-community/owner';
 const buyerPath='new-community/buyer';

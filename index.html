@@ -1,1 +1,35 @@
-<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#0077ff"><title>Бишка — Кабинет магазина ВКонтакте</title><link rel="stylesheet" href="./src/styles.css"></head><body><div id="app"></div><dialog id="modal"></dialog><div id="toast" role="status"></div><script type="module" src="./src/app.js"></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0077ff">
+  <title>Бишка — Кабинет магазина ВКонтакте</title>
+  <link rel="stylesheet" href="./src/styles.css?v=20261120-3">
+</head>
+<body>
+  <div id="app">
+    <section id="app-loading" class="card startup-status" aria-live="polite">
+      <h1>Бишка</h1>
+      <p>Загружаем демоверсию…</p>
+      <noscript><p>Включите JavaScript, чтобы открыть демоверсию.</p></noscript>
+    </section>
+  </div>
+  <dialog id="modal"></dialog>
+  <div id="toast" role="status"></div>
+  <script type="module">
+    import('./src/app.js?v=20261120-3').catch(error => {
+      console.error('Не удалось загрузить демоверсию', error);
+      const status = document.querySelector('#app-loading');
+      if (!status) return;
+      status.querySelector('p').textContent = 'Не удалось загрузить демоверсию. Попробуйте обновить страницу.';
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'btn primary';
+      retry.textContent = 'Обновить страницу';
+      retry.addEventListener('click', () => location.reload());
+      status.append(retry);
+    });
+  </script>
+</body>
+</html>

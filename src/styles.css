@@ -582,3 +582,6 @@ form[data-form="checkout"] label[data-address][hidden],form[data-form="checkout"
 .market-price-example{font-size:12px;font-weight:400;white-space:nowrap}
 
 .market-tabs{flex-wrap:wrap}
+
+.startup-status{max-width:420px;margin:56px auto;padding:24px;width:calc(100% - 32px)}
+.startup-status p,.startup-status .btn{margin-top:12px}

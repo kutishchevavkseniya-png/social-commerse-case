@@ -1,5 +1,5 @@
-import {friends,sellers} from './ecosystem.js';
-import {availableDelivery,deliveryMethods,arrivalDate,ozonPoints,quote,purchaseLabels,purchaseModes,cartModes,ozonUrl} from './commerce.js';
+import {friends,sellers} from './ecosystem.js?v=20261120-3';
+import {availableDelivery,deliveryMethods,arrivalDate,ozonPoints,quote,purchaseLabels,purchaseModes,cartModes,ozonUrl} from './commerce.js?v=20261120-3';
 
 export function shopUI(state,{esc,btn,link,money,table,partnerProducts}){
   const findProduct=id=>state.products.find(p=>p.id===id) || partnerProducts.find(p=>p.id===id);

@@ -1,15 +1,15 @@
-import {initEcosystem,ecosystemUI,illustration,friends} from './ecosystem.js';
-import {initCommunity,communityUI} from './community.js';
-import {shopUI} from './shop-ui.js';
-import {marketUI,partnerProducts} from './market-ui.js';
-import {availableDelivery,deliveryMethods,ozonPoints,arrivalDate,marketMatch,quote,suggestCategory,purchaseModes,purchaseLabels,ozonUrl,cartModes} from './commerce.js';
-import {channels, initialState, metrics, ready, placeOrder, placeOrders} from './store.js';
-import {changeDelivery,deliveryStages,deliveryStep,deliveryLabel} from './delivery.js';
-import {onboardingUI} from './onboarding.js';
-import {lessonSpotlight} from './lesson-spotlight.js';
-import {messengerUI} from './messenger.js';
+import {initEcosystem,ecosystemUI,illustration,friends} from './ecosystem.js?v=20261120-3';
+import {initCommunity,communityUI} from './community.js?v=20261120-3';
+import {shopUI} from './shop-ui.js?v=20261120-3';
+import {marketUI,partnerProducts} from './market-ui.js?v=20261120-3';
+import {availableDelivery,deliveryMethods,ozonPoints,arrivalDate,marketMatch,quote,suggestCategory,purchaseModes,purchaseLabels,ozonUrl,cartModes} from './commerce.js?v=20261120-3';
+import {channels, initialState, metrics, ready, placeOrder, placeOrders} from './store.js?v=20261120-3';
+import {changeDelivery,deliveryStages,deliveryStep,deliveryLabel} from './delivery.js?v=20261120-3';
+import {onboardingUI} from './onboarding.js?v=20261120-3';
+import {lessonSpotlight} from './lesson-spotlight.js?v=20261120-3';
+import {messengerUI} from './messenger.js?v=20261120-3';
 import {productInfo} from './product-info.js';
-import {initCase,caseFeatures} from './case-features.js';
+import {initCase,caseFeatures} from './case-features.js?v=20261120-3';
 import {icon} from './icons.js';
 
 const app = document.querySelector('#app');

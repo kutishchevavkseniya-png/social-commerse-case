@@ -1,4 +1,4 @@
-import {purchaseModes,ozonUrl,suggestCategory,arrivalDate,productQuote,quote} from './commerce.js';
+import {purchaseModes,ozonUrl,suggestCategory,arrivalDate,productQuote,quote} from './commerce.js?v=20261120-3';
 import {productInfo} from './product-info.js';
 import {icon} from './icons.js';
 export const friends=[{id:'alina',name:'Алина',url:'https://vk.com/id101'},{id:'misha',name:'Миша',url:'https://vk.com/id102'}];
